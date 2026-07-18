@@ -34,7 +34,7 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - - name: Get dependencies
+      - name: Get dependencies
         run: flutter pub get
 
       - name: Configure Gradle
