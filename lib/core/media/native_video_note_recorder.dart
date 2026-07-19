@@ -9,7 +9,7 @@ import '../utils/logger.dart';
 /// через Flutter [Texture] по [textureId]. media3-перекод не используется
 /// (серверный валидатор принимает только нативно записанный MP4).
 class NativeVideoNoteRecorder {
-  static const _channel = MethodChannel('ru.komet.app/video_note');
+  static const _channel = MethodChannel('ru.mayak.app/video_note');
 
   int? textureId;
   bool isFront = true;

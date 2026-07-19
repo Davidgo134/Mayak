@@ -1,4 +1,4 @@
-package ru.komet.app
+package ru.mayak.app
 
 import android.app.Service
 import android.content.Context
@@ -18,8 +18,8 @@ object CallState {
 class CallForegroundService : Service() {
 
     companion object {
-        const val ACTION_START = "ru.komet.app.CALL_ONGOING_START"
-        const val ACTION_STOP = "ru.komet.app.CALL_ONGOING_STOP"
+        const val ACTION_START = "ru.mayak.app.CALL_ONGOING_START"
+        const val ACTION_STOP = "ru.mayak.app.CALL_ONGOING_STOP"
         const val ONGOING_ID = 424243
 
         fun start(ctx: Context, caller: String) {

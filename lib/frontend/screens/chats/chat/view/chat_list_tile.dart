@@ -23,7 +23,7 @@ class AnimatedChatTile extends StatefulWidget {
 }
 
 class _AnimatedChatTileState extends State<AnimatedChatTile>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   static const Duration _moveDuration = Duration(milliseconds: 300);
   static const Duration _enterDuration = Duration(milliseconds: 260);
 

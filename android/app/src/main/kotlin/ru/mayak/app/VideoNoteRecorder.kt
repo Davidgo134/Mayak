@@ -1,4 +1,4 @@
-package ru.komet.app
+package ru.mayak.app
 
 import android.Manifest
 import android.content.Context

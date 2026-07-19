@@ -1,4 +1,4 @@
-package ru.komet.app
+package ru.mayak.app
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -59,8 +59,8 @@ object CallConst {
 
     const val ACTION_RING = "ring"
     const val ACTION_ANSWER = "answer"
-    const val ACTION_DECLINE = "ru.komet.app.CALL_DECLINE"
-    const val ACTION_HANGUP = "ru.komet.app.CALL_HANGUP"
+    const val ACTION_DECLINE = "ru.mayak.app.CALL_DECLINE"
+    const val ACTION_HANGUP = "ru.mayak.app.CALL_HANGUP"
 
     const val FLN_RECEIVER =
         "com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver"
