@@ -275,6 +275,18 @@ class VideoNoteRecorder(
                     device.close(); cameraDevice = null
                     result.error("CAMERA_ERROR", "code $error", null)
                 }
+
+                // Вызывается, когда close() ДЕЙСТВИТЕЛЬНО завершил
+                // освобождение устройства на уровне HAL -- единственный
+                // надёжный, документированный сигнал для switchCamera(),
+                // что теперь можно безопасно открывать новую камеру без
+                // гонки "camera device already in use".
+                override fun onClosed(device: CameraDevice) {
+                    pendingCloseCallback?.let {
+                        pendingCloseCallback = null
+                        it()
+                    }
+                }
             },
             camHandler,
         )
@@ -465,12 +477,12 @@ class VideoNoteRecorder(
         }
         val wasRecording = recording
 
-        // Watchdog: если весь процесс переоткрытия камеры не завершится за
-        // разумное время -- сдаёмся вместо того, чтобы навечно висеть в
-        // ожидании на стороне Dart. Раньше здесь не было никакой защиты:
-        // если что-то на пути (GL-поток, HAL, callback) не срабатывало,
-        // await switchCamera() в Dart просто никогда не получал ответ, и
-        // превью зависало "мёртво" без какого-либо recovery.
+        // Watchdog остаётся как последний рубеж защиты от совершенно
+        // непредвиденных зависаний (например, если сама HAL никогда не
+        // вызовет ни onClosed(), ни onOpened(), ни onError() -- баг
+        // конкретного производителя чипа). В штатном режиме он никогда не
+        // должен сработать, потому что теперь мы не гадаем с задержками, а
+        // ждём настоящее событие о закрытии камеры.
         val watchdog = Runnable {
             if (switching) {
                 switching = false
@@ -480,31 +492,14 @@ class VideoNoteRecorder(
         }
         camHandler?.postDelayed(watchdog, 4000)
 
-        fun clearWatchdogAnd(action: () -> Unit) {
-            camHandler?.removeCallbacks(watchdog)
-            action()
-        }
-
         camHandler?.post {
-            try {
-                session?.close()
-            } catch (_: Exception) {}
+            val oldSession = session
             session = null
-
-            try {
-                cameraDevice?.close()
-            } catch (_: Exception) {}
+            val oldDevice = cameraDevice
             cameraDevice = null
 
-            // ВАЖНО: ресайз буфера SurfaceTexture на glThread и повторное
-            // открытие камеры на camHandler -- это два НЕЗАВИСИМЫХ действия,
-            // им не нужно ждать друг друга последовательно. Раньше открытие
-            // камеры было вложено ВНУТРЬ glHandler.post{} -- если GL-поток
-            // по любой причине не мог обработать этот пост (исключение без
-            // перехвата в onFrame(), которое убивает HandlerThread, или
-            // просто затор в рендер-очереди), вложенный вызов открытия
-            // камеры никогда не выполнялся, и вся операция зависала
-            // намертво без единой ошибки в логе.
+            // Ресайз буфера SurfaceTexture под новую камеру -- независимая
+            // GL-операция, не связанная с жизненным циклом CameraDevice.
             glHandler?.post {
                 try {
                     camTexture?.setDefaultBufferSize(camSize.width, camSize.height)
@@ -512,40 +507,75 @@ class VideoNoteRecorder(
                     Log.w(tag, "switchCamera buffer resize: ${e.message}")
                 }
             }
-            openCameraForSwitchWithRetry(result, wasRecording, attempt = 0) {
-                clearWatchdogAnd {}
+
+            // Camera2 API документирует единственный надёжный способ узнать,
+            // что камера ДЕЙСТВИТЕЛЬНО освобождена HAL: дождаться onClosed()
+            // её собственного StateCallback. close() не блокирует и не
+            // гарантирует немедленное освобождение -- раньше мы либо звали
+            // openCamera() сразу (гонка "device already in use"), либо
+            // угадывали фиксированную задержку (150ms -- иногда мало,
+            // иногда с запасом), либо слепо перебирали retry с нарастающей
+            // паузой. Все эти варианты СИМПТОМАТИЧНЫ: они либо ловят гонку
+            // через раз, либо просто ждут "на всякий случай" дольше, чем
+            // нужно. Правильное решение -- подписаться на onClosed() того
+            // самого device, который мы закрываем, и открывать новую камеру
+            // из этого колбэка, детерминированно.
+            if (oldDevice == null) {
+                openCameraForSwitch(result, wasRecording, watchdog)
+                return@post
+            }
+
+            var closedHandled = false
+            val onOldDeviceClosed: () -> Unit = {
+                if (!closedHandled) {
+                    closedHandled = true
+                    openCameraForSwitch(result, wasRecording, watchdog)
+                }
+            }
+
+            try {
+                oldSession?.close()
+            } catch (_: Exception) {}
+
+            pendingCloseCallback = onOldDeviceClosed
+            try {
+                oldDevice.close()
+            } catch (_: Exception) {
+                pendingCloseCallback = null
+                onOldDeviceClosed()
             }
         }
     }
 
-    private fun openCameraForSwitchWithRetry(
+    // StateCallback старой камеры (см. selectCamera/openCamera) вызывает
+    // это поле из своего onClosed(), если оно установлено -- так
+    // switchCamera() детерминированно узнаёт о реальном освобождении камеры
+    // вместо угадывания задержки.
+    @Volatile private var pendingCloseCallback: (() -> Unit)? = null
+
+    private fun openCameraForSwitch(
         result: OnceResult,
         wasRecording: Boolean,
-        attempt: Int,
-        onSettled: () -> Unit,
+        watchdog: Runnable,
     ) {
-        openCameraForSwitch(
-            onSuccess = { onSettled(); switching = false; result.success(it) },
+        openCameraForSwitchAttempt(
+            onSuccess = {
+                camHandler?.removeCallbacks(watchdog)
+                switching = false
+                result.success(it)
+            },
             onError = { code, message ->
-                if (attempt < 8) {
-                    val delayMs = 100L * (attempt + 1)
-                    Log.w(tag, "switch open failed ($code: $message), retry #$attempt in ${delayMs}ms")
-                    camHandler?.postDelayed({
-                        openCameraForSwitchWithRetry(result, wasRecording, attempt + 1, onSettled)
-                    }, delayMs)
-                } else {
-                    onSettled()
-                    switching = false
-                    Log.e(tag, "switch open exhausted retries ($code: $message)")
-                    result.error(code, message, null)
-                }
+                camHandler?.removeCallbacks(watchdog)
+                switching = false
+                Log.e(tag, "switch open failed ($code: $message)")
+                result.error(code, message, null)
             },
             wasRecording = wasRecording,
         )
     }
 
     @Suppress("MissingPermission")
-    private fun openCameraForSwitch(
+    private fun openCameraForSwitchAttempt(
         onSuccess: (Map<String, Any?>) -> Unit,
         onError: (String, String?) -> Unit,
         wasRecording: Boolean,
@@ -613,7 +643,32 @@ class VideoNoteRecorder(
 
                     override fun onError(device: CameraDevice, error: Int) {
                         device.close(); cameraDevice = null
-                        onError("CAMERA_ERROR", "code $error")
+                        // "Camera in use" (ERROR_CAMERA_IN_USE=4) означает,
+                        // что HAL всё ещё считает прошлую камеру занятой,
+                        // несмотря на то что мы дождались её onClosed() --
+                        // единственный оставшийся вариант это редкая гонка
+                        // на уровне драйвера, а не наша логика. Одна
+                        // короткая повторная попытка (без бесконечного
+                        // retry-цикла) покрывает этот редкий случай.
+                        if (error == CameraDevice.StateCallback.ERROR_CAMERA_IN_USE) {
+                            Log.w(tag, "switch open: camera in use, one retry in 250ms")
+                            camHandler?.postDelayed({
+                                openCameraForSwitchAttempt(onSuccess, onError, wasRecording)
+                            }, 250)
+                        } else {
+                            onError("CAMERA_ERROR", "code $error")
+                        }
+                    }
+
+                    // Тот же детерминированный механизм ожидания реального
+                    // закрытия устройства работает и для камеры, открытой
+                    // через switch -- следующий switchCamera() снова
+                    // дождётся именно этого onClosed(), а не гадает.
+                    override fun onClosed(device: CameraDevice) {
+                        pendingCloseCallback?.let {
+                            pendingCloseCallback = null
+                            it()
+                        }
                     }
                 },
                 camHandler,
