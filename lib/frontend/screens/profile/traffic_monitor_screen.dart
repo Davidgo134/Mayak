@@ -68,7 +68,7 @@ class _TrafficMonitorScreenState extends State<TrafficMonitorScreen> {
       await file.writeAsString(json);
       await Share.shareXFiles(
         [XFile(file.path, mimeType: 'application/json')],
-        subject: 'Komet traffic capture',
+        subject: 'Маяк traffic capture',
         sharePositionOrigin: box == null
             ? null
             : box.localToGlobal(Offset.zero) & box.size,

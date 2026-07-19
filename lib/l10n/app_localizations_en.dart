@@ -9,7 +9,7 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
-  String get loginTitle => 'Sign in to Komet';
+  String get loginTitle => 'Sign in to Mayak';
 
   @override
   String get loginSubtitle =>
@@ -847,7 +847,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get callTooltipMinimize => 'Minimize';
 
   @override
-  String get callTooltipKometHub => 'Komet';
+  String get callTooltipKometHub => 'Mayak';
 
   @override
   String get callInfoTitle => 'About call';
@@ -990,7 +990,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get callInfoNoDataYet => 'Data will appear after connecting…';
 
   @override
-  String get hubTitleMenu => 'Komet';
+  String get hubTitleMenu => 'Mayak';
 
   @override
   String get hubChatPageTitle => 'Anonymous chat';

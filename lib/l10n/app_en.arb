@@ -1,6 +1,6 @@
 {
   "@@locale": "en",
-  "loginTitle": "Sign in to Komet",
+  "loginTitle": "Sign in to Mayak",
   "loginSubtitle": "Check your country code and enter your\nphone number.",
   "loginCountry": "Country",
   "loginPhoneNumber": "Phone number",
@@ -319,7 +319,7 @@
   "callParticipantYou": "You",
   "callParticipantFallback": "Participant",
   "callTooltipMinimize": "Minimize",
-  "callTooltipKometHub": "Komet",
+  "callTooltipKometHub": "Mayak",
   "callInfoTitle": "About call",
   "callPeerMicOff": "Microphone off",
   "callPeerCameraOn": "Camera on",
@@ -374,7 +374,7 @@
   "callBadgeAnimoji": "Animoji",
   "callInfoNoDataYet": "Data will appear after connecting…",
 
-  "hubTitleMenu": "Komet",
+  "hubTitleMenu": "Mayak",
   "hubChatPageTitle": "Anonymous chat",
   "hubGamesTitle": "Games",
   "hubCheckersTitle": "Checkers",

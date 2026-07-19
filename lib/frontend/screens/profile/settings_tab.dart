@@ -445,12 +445,12 @@ class _SettingsTabState extends State<SettingsTab> {
                   items: [
                     _SettingsItem(
                       leading: Image.asset(
-                        'assets/komet.png',
+                        'assets/meteor.png',
                         width: 22,
                         height: 22,
                         color: cs.onSurfaceVariant,
                       ),
-                      label: 'Komet',
+                      label: 'Маяк',
                       onTap: () {
                         Navigator.push(
                           context,

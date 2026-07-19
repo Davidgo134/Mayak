@@ -126,7 +126,7 @@ Future<void> _handleReply(String payloadJson, String text) async {
   } else {
     await plugin.show(
       id: notifId,
-      title: 'Komet',
+      title: 'Маяк',
       body: 'Не удалось отправить ответ',
       notificationDetails: const NotificationDetails(
         android: AndroidNotificationDetails(
