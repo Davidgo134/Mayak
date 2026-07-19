@@ -244,35 +244,6 @@ class VideoNoteRecorder(
         )
     }
 
-    // Переключение фронтальной/основной камеры без остановки записи: закрываем
-    // текущую camera session+device, выбираем камеру с противоположным facing и
-    // переоткрываем на тот же OES SurfaceTexture. GL-конвейер и MediaRecorder
-    // не трогаем — рекордер продолжает писать кадры с той же record-surface.
-    fun switchCamera(rawResult: MethodChannel.Result) {
-        val result = OnceResult(rawResult)
-        val newFacing = if (lensFacing == CameraCharacteristics.LENS_FACING_FRONT) {
-            CameraCharacteristics.LENS_FACING_BACK
-        } else {
-            CameraCharacteristics.LENS_FACING_FRONT
-        }
-        if (!selectCamera(newFacing)) {
-            result.error("NO_CAMERA", "requested camera not found", null)
-            return
-        }
-        try {
-            session?.close()
-        } catch (_: Exception) {}
-        session = null
-        cameraDevice?.close()
-        cameraDevice = null
-        camTexture?.setDefaultBufferSize(camSize.width, camSize.height)
-        val entryId = flutterEntry?.id() ?: run {
-            result.error("NOT_READY", "texture entry missing", null)
-            return
-        }
-        openCamera(result, entryId)
-    }
-
     private fun startPreviewSession(result: MethodChannel.Result, textureId: Long) {
         val device = cameraDevice ?: return
         val camSurface = camInputSurface ?: return
@@ -423,6 +394,103 @@ class VideoNoteRecorder(
         flutterEntry?.release(); flutterEntry = null
         glThread?.quitSafely(); glThread = null; glHandler = null
         camThread?.quitSafely(); camThread = null; camHandler = null
+    }
+
+
+    fun switchCamera(rawResult: MethodChannel.Result) {
+        val result = OnceResult(rawResult)
+        val newFacing = if (lensFacing == CameraCharacteristics.LENS_FACING_FRONT) {
+            CameraCharacteristics.LENS_FACING_BACK
+        } else {
+            CameraCharacteristics.LENS_FACING_FRONT
+        }
+        if (!selectCamera(newFacing)) {
+            result.error("NO_CAMERA", "requested camera not found", null)
+            return
+        }
+        val wasRecording = recording
+        try {
+            session?.close()
+        } catch (_: Exception) {}
+        session = null
+        cameraDevice?.close()
+        cameraDevice = null
+
+        glHandler?.post {
+            try {
+                camTexture?.setDefaultBufferSize(camSize.width, camSize.height)
+            } catch (e: Exception) {
+                Log.w(tag, "switchCamera buffer resize: ${e.message}")
+            }
+        }
+
+        camHandler?.post {
+            openCameraForSwitch(result, wasRecording)
+        }
+    }
+
+    @Suppress("MissingPermission")
+    private fun openCameraForSwitch(result: MethodChannel.Result, wasRecording: Boolean) {
+        try {
+            manager().openCamera(
+                cameraId,
+                object : CameraDevice.StateCallback() {
+                    override fun onOpened(device: CameraDevice) {
+                        Log.i(tag, "camera reopened (switch) $cameraId")
+                        cameraDevice = device
+                        val camSurface = camInputSurface
+                        if (camSurface == null) {
+                            result.error("SWITCH_FAILED", "no cam input surface", null)
+                            return
+                        }
+                        val surfaces = if (wasRecording && recorderSurface != null) {
+                            listOf(camSurface, recorderSurface!!)
+                        } else {
+                            listOf(camSurface)
+                        }
+                        try {
+                            createSession(surfaces) { s ->
+                                session = s
+                                val req = device.createCaptureRequest(
+                                    if (wasRecording) {
+                                        CameraDevice.TEMPLATE_RECORD
+                                    } else {
+                                        CameraDevice.TEMPLATE_PREVIEW
+                                    },
+                                )
+                                req.addTarget(camSurface)
+                                if (wasRecording && recorderSurface != null) {
+                                    req.addTarget(recorderSurface!!)
+                                }
+                                s.setRepeatingRequest(req.build(), null, camHandler)
+                                Log.i(tag, "switch session configured, recording=$wasRecording")
+                                result.success(
+                                    mapOf(
+                                        "isFront" to (lensFacing == CameraCharacteristics.LENS_FACING_FRONT),
+                                    ),
+                                )
+                            }
+                        } catch (e: Exception) {
+                            Log.e(tag, "switch session failed", e)
+                            result.error("SWITCH_FAILED", e.message, null)
+                        }
+                    }
+
+                    override fun onDisconnected(device: CameraDevice) {
+                        device.close(); cameraDevice = null
+                    }
+
+                    override fun onError(device: CameraDevice, error: Int) {
+                        device.close(); cameraDevice = null
+                        result.error("CAMERA_ERROR", "code $error", null)
+                    }
+                },
+                camHandler,
+            )
+        } catch (e: Exception) {
+            Log.e(tag, "openCameraForSwitch failed", e)
+            result.error("SWITCH_FAILED", e.message, null)
+        }
     }
 
     @Suppress("DEPRECATION")

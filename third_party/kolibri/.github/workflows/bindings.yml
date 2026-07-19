@@ -1,0 +1,90 @@
+name: bindings
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  dart:
+    name: dart (flutter plugin)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.44.3
+          channel: stable
+
+      - name: Pub get
+        working-directory: kolibri-dart
+        run: flutter pub get
+
+      - name: Analyze
+        working-directory: kolibri-dart
+        run: dart analyze
+
+  go:
+    name: go (cgo over C ABI)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: kolibri-go/rust
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Build native lib
+        run: cargo build --release --manifest-path kolibri-go/rust/Cargo.toml
+
+      - name: Go build + vet
+        working-directory: kolibri-go
+        run: |
+          go build ./...
+          go vet ./...
+
+  python:
+    name: python (pyo3 / maturin)
+    runs-on: ubuntu-latest
+    env:
+      PYO3_USE_ABI3_FORWARD_COMPATIBILITY: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: kolibri-py
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install maturin
+        run: pip install maturin
+
+      - name: Build wheel
+        working-directory: kolibri-py
+        run: maturin build --release --out dist
+
+      - name: Install + import smoke test
+        working-directory: kolibri-py
+        run: |
+          pip install --no-index --find-links dist kolibri
+          python -c "import kolibri; assert hasattr(kolibri, 'Session'); print('import OK')"

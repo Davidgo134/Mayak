@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
+import 'package:kolibri/kolibri.dart' show initKolibri;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:video_player_media_kit/video_player_media_kit.dart';
@@ -38,6 +39,9 @@ import 'core/config/app_media_cache.dart';
 import 'core/config/app_pill_gradient.dart';
 import 'core/config/app_visual_style.dart';
 import 'core/config/app_chat_chrome.dart';
+import 'core/config/app_composer_background.dart';
+import 'core/config/app_composer_style.dart';
+import 'core/config/app_nav_pill_style.dart';
 import 'core/config/app_wallpaper_tint.dart';
 import 'core/storage/chat_wallpaper_store.dart';
 import 'core/utils/wallpaper_seed.dart';
@@ -75,6 +79,8 @@ import 'frontend/debug/fps_overlay_layer.dart';
 import 'frontend/screens/auth/login_screen.dart';
 import 'frontend/widgets/adaptive_shell.dart';
 import 'frontend/widgets/custom_notification.dart';
+import 'frontend/widgets/liquid_glass.dart';
+import 'frontend/widgets/small_spinner.dart';
 import 'frontend/widgets/theme_reveal.dart';
 
 final api = Api();
@@ -92,6 +98,9 @@ final RouteObserver<PageRoute<dynamic>> appRouteObserver =
     RouteObserver<PageRoute<dynamic>>();
 
 bool isOnemeFlavor = false;
+
+const ProgressIndicatorThemeData _expressiveProgressTheme =
+    ProgressIndicatorThemeData(year2023: false);
 
 const PageTransitionsTheme _appPageTransitions = PageTransitionsTheme(
   builders: <TargetPlatform, PageTransitionsBuilder>{
@@ -156,6 +165,7 @@ void _installLogCapture() {
 
 void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initKolibri();
   DebugTest.parse(args);
   _installLogCapture();
   VideoPlayerMediaKit.ensureInitialized(
@@ -189,7 +199,11 @@ void main(List<String> args) async {
   final amoledFuture = AppAmoled.load();
   final pillGradientFuture = AppPillGradient.load();
   final visualStyleFuture = AppVisualStyle.load();
+  final liquidGlassFuture = LiquidGlass.load();
   final chatChromeFuture = AppChatChrome.load();
+  final composerStyleFuture = AppComposerStyle.load();
+  final composerBackgroundFuture = AppComposerBackground.load();
+  final navPillStyleFuture = AppNavPillStyle.load();
   final wallpaperTintFuture = AppWallpaperTint.load();
   final themeScheduleFuture = AppThemeSchedule.load();
   final messageActionsFuture = AppMessageActionsStyle.load();
@@ -240,7 +254,11 @@ void main(List<String> args) async {
     amoledFuture,
     pillGradientFuture,
     visualStyleFuture,
+    liquidGlassFuture,
     chatChromeFuture,
+    composerStyleFuture,
+    composerBackgroundFuture,
+    navPillStyleFuture,
     wallpaperTintFuture,
     themeScheduleFuture,
     messageActionsFuture,
@@ -426,9 +444,9 @@ class KometAppState extends State<KometApp>
 
     _vpnBypassSub = VpnBypassService.instance.events.listen((r) {
       final msg = r.bound
-          ? 'Соединение через VPN не работает — '
-                'используется ${r.boundInterface ?? r.transport ?? 'прямое подключение'}'
-          : 'Соединение через VPN не работает, обойти не удалось'
+          ? 'Обход VPN включён — прямое подключение через '
+                '${r.boundInterface ?? r.transport ?? 'сеть без VPN'}'
+          : 'Обход VPN не удался, подключение через туннель'
                 '${r.reason != null ? ' (${r.reason})' : ''}';
 
       final now = DateTime.now();
@@ -521,7 +539,9 @@ class KometAppState extends State<KometApp>
     AppAmoled.current.removeListener(_onAmoledChanged);
     AppThemeSchedule.current.removeListener(_onScheduleChanged);
     AppWallpaperTint.current.removeListener(_onWallpaperTintChanged);
-    ChatWallpaperStore.instance.revision.removeListener(_onWallpaperTintChanged);
+    ChatWallpaperStore.instance.revision.removeListener(
+      _onWallpaperTintChanged,
+    );
     WidgetsBinding.instance.removeObserver(this);
     _profileUpdateController.close();
     fpsOverlayEnabled.dispose();
@@ -746,8 +766,10 @@ class KometAppState extends State<KometApp>
       return;
     }
     await ChatWallpaperStore.instance.load();
-    final wallpaper =
-        ChatWallpaperStore.instance.get(accountId, kGlobalWallpaperChatId);
+    final wallpaper = ChatWallpaperStore.instance.get(
+      accountId,
+      kGlobalWallpaperChatId,
+    );
     final seed = await computeWallpaperSeed(wallpaper);
     if (!mounted) return;
     wallpaperSeed.value = seed;
@@ -817,6 +839,7 @@ class KometAppState extends State<KometApp>
         useMaterial3: true,
         colorScheme: light,
         pageTransitionsTheme: _appPageTransitions,
+        progressIndicatorTheme: _expressiveProgressTheme,
         textTheme: AppFonts.textTheme(
           _fontId,
           ThemeData(brightness: Brightness.light).textTheme,
@@ -828,6 +851,7 @@ class KometAppState extends State<KometApp>
         useMaterial3: true,
         colorScheme: dark,
         pageTransitionsTheme: _appPageTransitions,
+        progressIndicatorTheme: _expressiveProgressTheme,
         textTheme: AppFonts.textTheme(
           _fontId,
           ThemeData(brightness: Brightness.dark).textTheme,
@@ -891,8 +915,8 @@ class KometAppState extends State<KometApp>
             AppWallpaperTint.current,
           ]),
           builder: (context, _) {
-            final seed = AppWallpaperTint.current.value &&
-                    wallpaperSeed.value != null
+            final seed =
+                AppWallpaperTint.current.value && wallpaperSeed.value != null
                 ? wallpaperSeed.value
                 : accentSeed.value;
             final ColorScheme lightBase;
@@ -1046,7 +1070,7 @@ class _StartupScreenState extends State<_StartupScreen> {
     return Scaffold(
       backgroundColor: cs.surface,
       body: Center(
-        child: CircularProgressIndicator(color: cs.primary, strokeWidth: 2),
+        child: SmallSpinner(size: 36, color: cs.primary),
       ),
     );
   }

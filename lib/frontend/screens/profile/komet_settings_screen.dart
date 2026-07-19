@@ -38,7 +38,7 @@ class KometSettingsScreen extends StatelessWidget {
                   valueListenable: KometSettings.viewDeleted,
                   builder: (context, value, _) => SettingsToggleTile(
                     icon: Symbols.delete_history,
-                    label: 'View deleted message',
+                    label: 'Показывать удалённые сообщения',
                     subtitle: 'Показывать удалённые сообщения',
                     value: value,
                     onChanged: KometSettings.setViewDeleted,
@@ -48,7 +48,7 @@ class KometSettingsScreen extends StatelessWidget {
                   valueListenable: KometSettings.viewRedacted,
                   builder: (context, value, _) => SettingsToggleTile(
                     icon: Symbols.history_edu,
-                    label: 'View redacted message history',
+                    label: 'История редактирования',
                     subtitle: 'Показывать историю у редактированных сообщений',
                     value: value,
                     onChanged: KometSettings.setViewRedacted,
@@ -58,7 +58,7 @@ class KometSettingsScreen extends StatelessWidget {
                   valueListenable: KometSettings.fullTimestamp,
                   builder: (context, value, _) => SettingsToggleTile(
                     icon: Symbols.schedule,
-                    label: 'View full timestamp',
+                    label: 'Точное время сообщений',
                     subtitle: 'Показывать время в секундах у сообщений',
                     value: value,
                     onChanged: KometSettings.setFullTimestamp,
@@ -78,7 +78,7 @@ class KometSettingsScreen extends StatelessWidget {
                   valueListenable: KometSettings.hideAllChatsFolder,
                   builder: (context, value, _) => SettingsToggleTile(
                     icon: Symbols.folder_off,
-                    label: 'Hide "All" folder',
+                    label: 'Скрыть папку «Все»',
                     subtitle:
                         'Скрыть папку «Все», когда есть другие папки. '
                         'Чаты сортируются только по вашим папкам',
@@ -90,7 +90,7 @@ class KometSettingsScreen extends StatelessWidget {
                   valueListenable: KometSettings.showHiddenChats,
                   builder: (context, value, _) => SettingsToggleTile(
                     icon: Symbols.visibility_lock,
-                    label: 'Show hidden chats',
+                    label: 'Показывать скрытые чаты',
                     subtitle:
                         'Показывать скрытые чаты (например, от групповых '
                         'звонков), которые обычно не отображаются в списке',
@@ -102,7 +102,7 @@ class KometSettingsScreen extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             const SectionHeader(
-              'Ghost Mode',
+              'Режим невидимки',
               padding: EdgeInsets.fromLTRB(8, 0, 8, 8),
               fontSize: 14,
             ),
@@ -112,7 +112,7 @@ class KometSettingsScreen extends StatelessWidget {
                   valueListenable: KometSettings.ghostMode,
                   builder: (context, value, _) => SettingsToggleTile(
                     icon: Symbols.visibility_off,
-                    label: 'Ghost Mode',
+                    label: 'Режим невидимки',
                     subtitle: 'Вас не видно в сети',
                     value: value,
                     onChanged: _setGhostMode,
@@ -122,7 +122,7 @@ class KometSettingsScreen extends StatelessWidget {
                   valueListenable: KometSettings.antiRead,
                   builder: (context, value, _) => SettingsToggleTile(
                     icon: Symbols.mark_chat_read,
-                    label: 'Anti read',
+                    label: 'Нечиталка',
                     subtitle: 'Нечиталка сообщений',
                     value: value,
                     onChanged: KometSettings.setAntiRead,
@@ -132,7 +132,7 @@ class KometSettingsScreen extends StatelessWidget {
                   valueListenable: KometSettings.selfOnlineCheck,
                   builder: (context, value, _) => SettingsToggleTile(
                     icon: Symbols.radar,
-                    label: 'Self Online Check',
+                    label: 'Проверка своего онлайна',
                     subtitle:
                         'Каждые ~10 секунд сверяет, когда вы были онлайн. '
                         'Полезно для проверки ghost mode',

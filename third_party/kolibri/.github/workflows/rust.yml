@@ -1,0 +1,69 @@
+name: rust
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  fmt:
+    name: rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Check formatting (all crates)
+        run: |
+          cargo fmt --check
+          cargo fmt --check --manifest-path kolibri-dart/rust/Cargo.toml
+          cargo fmt --check --manifest-path kolibri-go/rust/Cargo.toml
+
+  core:
+    name: core (kolibri-net)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Clippy (default features)
+        run: cargo clippy -p kolibri-net --all-targets -- -D warnings
+
+      - name: Clippy (no default features — pure codec)
+        run: cargo clippy -p kolibri-net --no-default-features -- -D warnings
+
+      - name: Test
+        run: cargo test -p kolibri-net
+
+      - name: Build without tokio/rustls (codec-only gate)
+        run: cargo build -p kolibri-net --no-default-features
+
+  bindings-build:
+    name: bindings compile against core
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build Dart binding crate
+        run: cargo build --manifest-path kolibri-dart/rust/Cargo.toml
+
+      - name: Build Go binding crate
+        run: cargo build --manifest-path kolibri-go/rust/Cargo.toml

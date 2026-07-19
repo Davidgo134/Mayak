@@ -22,7 +22,7 @@ class NativeVideoNoteRecorder {
         'front': front,
       });
       textureId = res?['textureId'] as int?;
-      if (textureId != null) isFront = front;
+      isFront = front;
       return textureId != null;
     } catch (e) {
       logger.w('NativeVideoNoteRecorder.init: $e');
@@ -30,15 +30,15 @@ class NativeVideoNoteRecorder {
     }
   }
 
-  /// Переключает фронтальную/основную камеру. Работает как перед записью
-  /// (в режиме превью), так и во время активной записи — камера
-  /// переоткрывается "на лету", без прерывания MediaRecorder.
   Future<bool> switchCamera() async {
-    if (!isAvailable || textureId == null) return false;
+    if (!isAvailable) return false;
     try {
-      await _channel.invokeMethod('switchCamera');
-      isFront = !isFront;
-      return true;
+      final res = await _channel.invokeMapMethod<String, dynamic>(
+        'switchCamera',
+      );
+      final front = res?['isFront'] as bool?;
+      if (front != null) isFront = front;
+      return front != null;
     } catch (e) {
       logger.w('NativeVideoNoteRecorder.switchCamera: $e');
       return false;

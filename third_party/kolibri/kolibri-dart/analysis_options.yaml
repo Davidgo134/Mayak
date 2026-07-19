@@ -1,0 +1,5 @@
+analyzer:
+  exclude:
+    # Vendored cargokit build tool — a separate Dart package with its own
+    # pubspec/deps; not part of this plugin's sources.
+    - cargokit/**

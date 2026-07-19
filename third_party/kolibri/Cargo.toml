@@ -1,0 +1,7 @@
+[workspace]
+resolver = "2"
+members = ["kolibri-net", "kolibri-py"]
+# Default to the pure-Rust core for `cargo build` / `cargo test`; the Python
+# crate (kolibri-py) is built via maturin, which sets the extension-module link
+# flags.
+default-members = ["kolibri-net"]

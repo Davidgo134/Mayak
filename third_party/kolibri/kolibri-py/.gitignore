@@ -1,0 +1,7 @@
+/target
+Cargo.lock
+*.so
+*.pyd
+__pycache__/
+examples/.bot_identity.json
+examples/track.wav

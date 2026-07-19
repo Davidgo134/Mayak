@@ -525,6 +525,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get msgActionsCopy => 'Copy';
 
   @override
+  String get msgActionsSelectAll => 'Select all';
+
+  @override
   String get emojiSearchHint => 'Search emoji';
 
   @override
@@ -550,6 +553,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get msgActionsEditHistory => 'Edit history';
+
+  @override
+  String get msgActionsReadBy => 'Read by';
+
+  @override
+  String get msgActionsReadByEmpty => 'Nobody has read it yet';
+
+  @override
+  String get msgActionsReadByUnknownUser => 'User';
 
   @override
   String get msgActionsReport => 'Report';
@@ -747,6 +759,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearanceVisualStyleGlossy => 'Glossy';
 
   @override
+  String get appearanceVisualStyleLiquidGlass => 'Liquid Glass';
+
+  @override
+  String get appearanceGlassMaterial => 'Glass';
+
+  @override
   String get appearanceChatChromeTitle => 'Chat screen elements';
 
   @override
@@ -763,7 +781,33 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearanceChatChromeNone => 'None';
 
   @override
-  String get appearanceChatChromeTransparent => 'Clear';
+  String get appearanceChatChromeTransparent => 'Frost blur';
+
+  @override
+  String get appearanceComposerTitle => 'Input bar';
+
+  @override
+  String get appearanceComposerSubtitle =>
+      'Style and background of the message input bar';
+
+  @override
+  String get appearanceComposerBackgroundStandard => 'Default';
+
+  @override
+  String get appearanceComposerBackgroundFrost => 'Frost blur';
+
+  @override
+  String get appearanceNavPillTitle => 'Switcher style';
+
+  @override
+  String get appearanceNavPillSubtitle =>
+      'Section switcher on the chats screen';
+
+  @override
+  String get appearanceNavPillGlossy => 'Glossy';
+
+  @override
+  String get appearanceNavPillFrost => 'G-FrostBlur';
 
   @override
   String get appearanceGradientTitle => 'Gradient';
@@ -1269,6 +1313,30 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sharedDownload => 'Download';
+
+  @override
+  String photoViewerCounter(int index, int total) {
+    return 'Photo $index of $total';
+  }
+
+  @override
+  String photoViewerSentToday(String sender, String time) {
+    return '$sender • today at $time';
+  }
+
+  @override
+  String photoViewerSentOn(String sender, String date, String time) {
+    return '$sender • $date at $time';
+  }
+
+  @override
+  String get photoViewerSaveAs => 'Save as…';
+
+  @override
+  String get photoViewerViewAll => 'View all photos';
+
+  @override
+  String get photoViewerRotate => 'Rotate';
 
   @override
   String get sharedCopyLink => 'Copy link';
@@ -2016,4 +2084,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get updateDownloadFailed => 'Failed to download the update';
+
+  @override
+  String get updateCheck => 'Check for updates';
+
+  @override
+  String get updateChecking => 'Checking for updates…';
+
+  @override
+  String get updateUpToDate => 'You have the latest version';
+
+  @override
+  String get updateCheckFailed =>
+      'Couldn\'t check for updates. Try again later';
 }

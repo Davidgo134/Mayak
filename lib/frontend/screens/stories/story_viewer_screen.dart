@@ -13,6 +13,8 @@ import '../../../main.dart' show storiesModule;
 import '../../../models/story.dart';
 import '../../widgets/custom_notification.dart';
 import '../../widgets/komet_avatar.dart';
+import '../../widgets/liquid_glass.dart';
+import '../../widgets/small_spinner.dart';
 import 'story_owner_info.dart';
 
 const _quickReactions = ['❤️', '🔥', '😍', '👏', '😂', '😮'];
@@ -489,14 +491,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
           const _TopScrim(),
           if (loading)
             const Center(
-              child: SizedBox(
-                width: 28,
-                height: 28,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.4,
-                  color: Colors.white,
-                ),
-              ),
+              child: SmallSpinner(size: 28, color: Colors.white),
             ),
           SafeArea(
             child: Column(
@@ -627,33 +622,26 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
           child: Center(
-            child: ClipRRect(
+            child: GlassSurface(
               borderRadius: BorderRadius.circular(30),
-              child: BackdropFilter(
-                filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(30),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.18),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      for (final emoji in _quickReactions)
-                        _ReactionButton(
-                          emoji: emoji,
-                          selected: current == emoji,
-                          onTap: () => _toggleReaction(emoji),
-                        ),
-                    ],
-                  ),
+              frostTint: Colors.white.withValues(alpha: 0.12),
+              frostSigma: 14,
+              border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final emoji in _quickReactions)
+                      _ReactionButton(
+                        emoji: emoji,
+                        selected: current == emoji,
+                        onTap: () => _toggleReaction(emoji),
+                      ),
+                  ],
                 ),
               ),
             ),
@@ -1075,14 +1063,7 @@ class _OwnerCover extends StatelessWidget {
                 imageUrl: info?.avatarUrl,
               ),
               const SizedBox(height: 14),
-              const SizedBox(
-                width: 22,
-                height: 22,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white30,
-                ),
-              ),
+              const SmallSpinner(size: 22, color: Colors.white30),
             ],
           ),
         ),

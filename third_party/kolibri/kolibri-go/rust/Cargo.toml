@@ -1,0 +1,25 @@
+[package]
+name = "kolibri-go-ffi"
+version = "0.1.0"
+edition = "2021"
+description = "C ABI over kolibri-net for the Go binding"
+license = "MIT OR Apache-2.0"
+
+[workspace]
+
+[lib]
+name = "kolibri_go"
+crate-type = ["staticlib", "cdylib"]
+
+[dependencies]
+kolibri-net = { path = "../../kolibri-net" }
+rmpv = "1"
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

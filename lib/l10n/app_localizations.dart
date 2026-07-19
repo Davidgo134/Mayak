@@ -1094,6 +1094,12 @@ abstract class AppLocalizations {
   /// **'Copy'**
   String get msgActionsCopy;
 
+  /// No description provided for @msgActionsSelectAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Select all'**
+  String get msgActionsSelectAll;
+
   /// No description provided for @emojiSearchHint.
   ///
   /// In en, this message translates to:
@@ -1147,6 +1153,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Edit history'**
   String get msgActionsEditHistory;
+
+  /// No description provided for @msgActionsReadBy.
+  ///
+  /// In en, this message translates to:
+  /// **'Read by'**
+  String get msgActionsReadBy;
+
+  /// No description provided for @msgActionsReadByEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Nobody has read it yet'**
+  String get msgActionsReadByEmpty;
+
+  /// No description provided for @msgActionsReadByUnknownUser.
+  ///
+  /// In en, this message translates to:
+  /// **'User'**
+  String get msgActionsReadByUnknownUser;
 
   /// No description provided for @msgActionsReport.
   ///
@@ -1502,6 +1526,18 @@ abstract class AppLocalizations {
   /// **'Glossy'**
   String get appearanceVisualStyleGlossy;
 
+  /// No description provided for @appearanceVisualStyleLiquidGlass.
+  ///
+  /// In en, this message translates to:
+  /// **'Liquid Glass'**
+  String get appearanceVisualStyleLiquidGlass;
+
+  /// No description provided for @appearanceGlassMaterial.
+  ///
+  /// In en, this message translates to:
+  /// **'Glass'**
+  String get appearanceGlassMaterial;
+
   /// No description provided for @appearanceChatChromeTitle.
   ///
   /// In en, this message translates to:
@@ -1535,8 +1571,56 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceChatChromeTransparent.
   ///
   /// In en, this message translates to:
-  /// **'Clear'**
+  /// **'Frost blur'**
   String get appearanceChatChromeTransparent;
+
+  /// No description provided for @appearanceComposerTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Input bar'**
+  String get appearanceComposerTitle;
+
+  /// No description provided for @appearanceComposerSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Style and background of the message input bar'**
+  String get appearanceComposerSubtitle;
+
+  /// No description provided for @appearanceComposerBackgroundStandard.
+  ///
+  /// In en, this message translates to:
+  /// **'Default'**
+  String get appearanceComposerBackgroundStandard;
+
+  /// No description provided for @appearanceComposerBackgroundFrost.
+  ///
+  /// In en, this message translates to:
+  /// **'Frost blur'**
+  String get appearanceComposerBackgroundFrost;
+
+  /// No description provided for @appearanceNavPillTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Switcher style'**
+  String get appearanceNavPillTitle;
+
+  /// No description provided for @appearanceNavPillSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Section switcher on the chats screen'**
+  String get appearanceNavPillSubtitle;
+
+  /// No description provided for @appearanceNavPillGlossy.
+  ///
+  /// In en, this message translates to:
+  /// **'Glossy'**
+  String get appearanceNavPillGlossy;
+
+  /// No description provided for @appearanceNavPillFrost.
+  ///
+  /// In en, this message translates to:
+  /// **'G-FrostBlur'**
+  String get appearanceNavPillFrost;
 
   /// No description provided for @appearanceGradientTitle.
   ///
@@ -2497,6 +2581,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Download'**
   String get sharedDownload;
+
+  /// No description provided for @photoViewerCounter.
+  ///
+  /// In en, this message translates to:
+  /// **'Photo {index} of {total}'**
+  String photoViewerCounter(int index, int total);
+
+  /// No description provided for @photoViewerSentToday.
+  ///
+  /// In en, this message translates to:
+  /// **'{sender} • today at {time}'**
+  String photoViewerSentToday(String sender, String time);
+
+  /// No description provided for @photoViewerSentOn.
+  ///
+  /// In en, this message translates to:
+  /// **'{sender} • {date} at {time}'**
+  String photoViewerSentOn(String sender, String date, String time);
+
+  /// No description provided for @photoViewerSaveAs.
+  ///
+  /// In en, this message translates to:
+  /// **'Save as…'**
+  String get photoViewerSaveAs;
+
+  /// No description provided for @photoViewerViewAll.
+  ///
+  /// In en, this message translates to:
+  /// **'View all photos'**
+  String get photoViewerViewAll;
+
+  /// No description provided for @photoViewerRotate.
+  ///
+  /// In en, this message translates to:
+  /// **'Rotate'**
+  String get photoViewerRotate;
 
   /// No description provided for @sharedCopyLink.
   ///
@@ -3901,6 +4021,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Failed to download the update'**
   String get updateDownloadFailed;
+
+  /// No description provided for @updateCheck.
+  ///
+  /// In en, this message translates to:
+  /// **'Check for updates'**
+  String get updateCheck;
+
+  /// No description provided for @updateChecking.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking for updates…'**
+  String get updateChecking;
+
+  /// No description provided for @updateUpToDate.
+  ///
+  /// In en, this message translates to:
+  /// **'You have the latest version'**
+  String get updateUpToDate;
+
+  /// No description provided for @updateCheckFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t check for updates. Try again later'**
+  String get updateCheckFailed;
 }
 
 class _AppLocalizationsDelegate

@@ -8,6 +8,7 @@ import '../../core/protocol/opcode_map.dart';
 import '../../core/protocol/packet.dart';
 import '../../core/cache/info_cache.dart';
 import '../../core/cache/message_session_cache.dart';
+import 'shared_content.dart';
 import '../../core/storage/app_database.dart';
 import '../../core/storage/token_storage.dart';
 import '../../core/utils/logger.dart';
@@ -560,6 +561,7 @@ class ChatsModule {
     ContactInfoFetch.clear();
     PresenceFetch.clear();
     ChatInfoFetch.clear();
+    SharedContentModule.clearPhotoIndex();
   }
 
   void _enqueueGlobalPush(Packet packet) {
@@ -1273,6 +1275,18 @@ class ChatsModule {
     final chats = payload?['chats'] as List?;
     if (chats == null || chats.isEmpty) return null;
     return Map<String, dynamic>.from(chats.first as Map);
+  }
+
+  Future<Map<int, int>> getReadMarks(Api api, int accountId, int chatId) async {
+    try {
+      final info = await getChatInfo(api, chatId);
+      final fresh = parseParticipants(info?['participants']);
+      if (fresh.isNotEmpty) return fresh;
+    } catch (e) {
+      logger.w('Не удалось получить отметки прочтения для $chatId: $e');
+    }
+    final rows = await getChat(accountId, chatId);
+    return rows.isEmpty ? const {} : rows.first.participants;
   }
 
   Future<dynamic> searchById(Api api, int userId) async {

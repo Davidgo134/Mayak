@@ -1,0 +1,12 @@
+/target
+**/rust/target/
+Cargo.lock
+/.venv
+**/__pycache__/
+*.so
+*.pyd
+*.a
+.DS_Store
+
+# built example binaries
+kolibri-go/kolibri-x86_64

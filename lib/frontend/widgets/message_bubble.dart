@@ -18,6 +18,8 @@ import '../../core/utils/webview_support.dart';
 import '../../core/config/app_link_preview.dart';
 import 'custom_notification.dart';
 import 'formatted_message_text.dart';
+import 'photo_viewer.dart';
+import 'selectable_message_text.dart';
 import '../../models/attachment.dart';
 import '../../models/reaction_info.dart';
 import 'attachment/bubbles/voice_bubble.dart';
@@ -124,6 +126,8 @@ class MessageBubble extends StatelessWidget {
   final CachedMessage? prevMessage;
   final CachedMessage? nextMessage;
   final String chatType;
+  final int? chatId;
+  final PhotoViewerActions? photoActions;
   final String? overrideStatus;
   final ValueListenable<int>? otherReadTime;
   final ValueListenable<Map<String, dynamic>?>? reactionsListenable;
@@ -134,6 +138,8 @@ class MessageBubble extends StatelessWidget {
   final void Function(String emoji)? onReactionTap;
   final String? peerName;
   final String? peerAvatarUrl;
+  final ValueListenable<({String id, Offset pos})?>? textSelection;
+  final VoidCallback? onExitTextSelection;
 
   const MessageBubble({
     super.key,
@@ -143,6 +149,8 @@ class MessageBubble extends StatelessWidget {
     this.prevMessage,
     this.nextMessage,
     required this.chatType,
+    this.chatId,
+    this.photoActions,
     this.overrideStatus,
     this.otherReadTime,
     this.reactionsListenable,
@@ -153,6 +161,8 @@ class MessageBubble extends StatelessWidget {
     this.onReactionTap,
     this.peerName,
     this.peerAvatarUrl,
+    this.textSelection,
+    this.onExitTextSelection,
   });
 
   bool _computeHasPhotoWithCaption() {
@@ -502,6 +512,8 @@ class MessageBubble extends StatelessWidget {
       isMe: isMe,
       myId: myId,
       chatType: chatType,
+      chatId: chatId,
+      photoActions: photoActions,
       overrideStatus: overrideStatus,
       otherReadTime: otherReadTime,
       uploadProgress: uploadProgress,
@@ -1082,6 +1094,25 @@ class MessageBubble extends StatelessWidget {
     );
   }
 
+  Widget _wrapSelectable(Widget textWidget) {
+    final listenable = textSelection;
+    if (listenable == null || (message.text?.isEmpty ?? true)) {
+      return textWidget;
+    }
+    return ValueListenableBuilder<({String id, Offset pos})?>(
+      valueListenable: listenable,
+      builder: (context, req, child) {
+        if (req == null || req.id != message.id) return child!;
+        return SelectableMessageText(
+          initialGlobalPosition: req.pos,
+          onExit: onExitTextSelection ?? () {},
+          child: child!,
+        );
+      },
+      child: textWidget,
+    );
+  }
+
   Widget _buildTextContent(BubbleContext ctx) {
     final attachments = message.attachments;
     final isForwardedContact =
@@ -1102,7 +1133,7 @@ class MessageBubble extends StatelessWidget {
 
     final textStyle = TextStyle(color: ctx.text, fontSize: 16, height: 1.3);
     final ranges = message.formatRanges;
-    final textWidget = isForwarded
+    final baseTextWidget = isForwarded
         ? _buildForwardedInlineText(ctx, forwarded)
         : (FormattedMessageText.isFormatted(message.text, ranges)
               ? FormattedMessageText(
@@ -1111,6 +1142,7 @@ class MessageBubble extends StatelessWidget {
                   style: textStyle,
                 )
               : Text(message.text ?? '', style: textStyle));
+    final textWidget = _wrapSelectable(baseTextWidget);
 
     final metaWidget = Text(
       message.status == 'EDITED' ? '${ctx.clockText} ред.' : ctx.clockText,
@@ -1153,31 +1185,23 @@ class MessageBubble extends StatelessWidget {
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
       children: [
-        LayoutBuilder(
-          builder: (context, constraints) {
-            return Wrap(
-              alignment: WrapAlignment.start,
-              crossAxisAlignment: WrapCrossAlignment.end,
-              children: [
-                ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: constraints.maxWidth),
-                  child: textWidget,
-                ),
-                const SizedBox(width: 8),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 2),
-                  child: metaWidget,
-                ),
-                if (isMe) ...[const SizedBox(width: 4), ctx.statusIcon()],
-                if (message.deleted) ...[
-                  const SizedBox(width: 4),
-                  ctx.deletedIcon(),
-                ],
-              ],
-            );
-          },
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Flexible(child: textWidget),
+            const SizedBox(width: 8),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 2),
+              child: metaWidget,
+            ),
+            if (isMe) ...[const SizedBox(width: 4), ctx.statusIcon()],
+            if (message.deleted) ...[
+              const SizedBox(width: 4),
+              ctx.deletedIcon(),
+            ],
+          ],
         ),
       ],
     );
