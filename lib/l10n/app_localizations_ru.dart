@@ -829,7 +829,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get callKometDetectedNotification =>
-      'Этот человек использует Komet! :3';
+      'Этот человек использует Маяк! :3';
 
   @override
   String get callStatusConnecting => 'Соединение';

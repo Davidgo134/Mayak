@@ -791,11 +791,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 GestureDetector(
                                   behavior: HitTestBehavior.opaque,
                                   onTap: _onLogoTap,
-                                  child: Image.asset(
-                                    'assets/meteor.png',
-                                    height: 80,
-                                    color: cs.onSurface,
-                                  ),
+                                  child: const SizedBox(height: 80, width: 80),
                                 ),
                                 const SizedBox(height: 16),
                                 Text(

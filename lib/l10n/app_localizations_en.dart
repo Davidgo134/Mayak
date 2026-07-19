@@ -826,7 +826,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearancePreviewNotBad => 'Not bad at all!';
 
   @override
-  String get callKometDetectedNotification => 'This person uses Komet! :3';
+  String get callKometDetectedNotification => 'This person uses Mayak! :3';
 
   @override
   String get callStatusConnecting => 'Connecting';
