@@ -517,6 +517,79 @@ class VideoNoteRecorder(
         )
     }
 
+    @Suppress("MissingPermission")
+    private fun openCameraForSwitch(
+        onSuccess: (Map<String, Any?>) -> Unit,
+        onError: (String, String?) -> Unit,
+        wasRecording: Boolean,
+    ) {
+        try {
+            manager().openCamera(
+                cameraId,
+                object : CameraDevice.StateCallback() {
+                    override fun onOpened(device: CameraDevice) {
+                        Log.i(tag, "camera reopened (switch) $cameraId")
+                        cameraDevice = device
+                        val camSurface = camInputSurface
+                        if (camSurface == null) {
+                            onError("SWITCH_FAILED", "no cam input surface")
+                            return
+                        }
+                        val surfaces = if (wasRecording && recorderSurface != null) {
+                            listOf(camSurface, recorderSurface!!)
+                        } else {
+                            listOf(camSurface)
+                        }
+                        try {
+                            createSession(surfaces) { s ->
+                                session = s
+                                val req = device.createCaptureRequest(
+                                    if (wasRecording) {
+                                        CameraDevice.TEMPLATE_RECORD
+                                    } else {
+                                        CameraDevice.TEMPLATE_PREVIEW
+                                    },
+                                )
+                                req.addTarget(camSurface)
+                                if (wasRecording && recorderSurface != null) {
+                                    req.addTarget(recorderSurface!!)
+                                }
+                                fpsRange?.let {
+                                    req.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, it)
+                                    Log.i(tag, "FPS_DIAG applied switch fpsRange=$it")
+                                }
+                                s.setRepeatingRequest(req.build(), null, camHandler)
+                                Log.i(tag, "switch session configured, recording=$wasRecording")
+                                onSuccess(
+                                    mapOf(
+                                        "isFront" to (lensFacing == CameraCharacteristics.LENS_FACING_FRONT),
+                                    ),
+                                )
+                            }
+                        } catch (e: Exception) {
+                            Log.e(tag, "switch session failed", e)
+                            onError("SWITCH_FAILED", e.message)
+                        }
+                    }
+
+                    override fun onDisconnected(device: CameraDevice) {
+                        device.close(); cameraDevice = null
+                        onError("CAMERA_DISCONNECTED", "camera disconnected during switch")
+                    }
+
+                    override fun onError(device: CameraDevice, error: Int) {
+                        device.close(); cameraDevice = null
+                        onError("CAMERA_ERROR", "code $error")
+                    }
+                },
+                camHandler,
+            )
+        } catch (e: Exception) {
+            Log.e(tag, "openCameraForSwitch failed", e)
+            onError("SWITCH_FAILED", e.message)
+        }
+    }
+
     private fun createSession(
         surfaces: List<Surface>,
         onReady: (CameraCaptureSession) -> Unit,
