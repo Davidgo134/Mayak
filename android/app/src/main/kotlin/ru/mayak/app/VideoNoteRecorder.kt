@@ -199,6 +199,8 @@ class VideoNoteRecorder(
     private var lastFrameNs = 0L
     private var fpsWindowStartNs = 0L
     private var fpsWindowFrames = 0
+    @Volatile private var cameraGeneration = 0
+    @Volatile private var awaitingFirstFrameAfterSwitch = false
 
     private fun onFrame() {
         val nowNs = System.nanoTime()
@@ -220,6 +222,10 @@ class VideoNoteRecorder(
             }
         }
         lastFrameNs = nowNs
+        if (awaitingFirstFrameAfterSwitch) {
+            awaitingFirstFrameAfterSwitch = false
+            Log.i(tag, "switch first frame arrived generation=$cameraGeneration")
+        }
 
         val st = camTexture ?: return
         val prog = program ?: return
@@ -521,23 +527,33 @@ class VideoNoteRecorder(
             // самого device, который мы закрываем, и открывать новую камеру
             // из этого колбэка, детерминированно.
             if (oldDevice == null) {
+                cameraGeneration += 1
+                awaitingFirstFrameAfterSwitch = true
                 openCameraForSwitch(result, wasRecording, watchdog)
                 return@post
             }
 
             var closedHandled = false
+            val nextGeneration = cameraGeneration + 1
             val onOldDeviceClosed: () -> Unit = {
                 if (!closedHandled) {
                     closedHandled = true
+                    cameraGeneration = nextGeneration
+                    awaitingFirstFrameAfterSwitch = true
+                    frameCount = 0
+                    lastFrameNs = 0L
+                    fpsWindowStartNs = 0L
+                    fpsWindowFrames = 0
+                    Log.i(tag, "switch old camera fully closed; opening generation=$cameraGeneration")
                     openCameraForSwitch(result, wasRecording, watchdog)
                 }
             }
 
+            pendingCloseCallback = onOldDeviceClosed
             try {
                 oldSession?.close()
             } catch (_: Exception) {}
 
-            pendingCloseCallback = onOldDeviceClosed
             try {
                 oldDevice.close()
             } catch (_: Exception) {
@@ -558,15 +574,29 @@ class VideoNoteRecorder(
         wasRecording: Boolean,
         watchdog: Runnable,
     ) {
+        val expectedGeneration = cameraGeneration
         openCameraForSwitchAttempt(
-            onSuccess = {
-                camHandler?.removeCallbacks(watchdog)
-                switching = false
-                result.success(it)
+            onSuccess = { payload ->
+                val confirmFirstFrame = Runnable {
+                    if (!switching) return@Runnable
+                    if (cameraGeneration != expectedGeneration) return@Runnable
+                    if (awaitingFirstFrameAfterSwitch) {
+                        switching = false
+                        camHandler?.removeCallbacks(watchdog)
+                        Log.e(tag, "switch failed: session reopened but no first frame arrived")
+                        result.error("SWITCH_NO_FRAME", "camera reopened but preview frame did not arrive", null)
+                    } else {
+                        camHandler?.removeCallbacks(watchdog)
+                        switching = false
+                        result.success(payload)
+                    }
+                }
+                camHandler?.postDelayed(confirmFirstFrame, 700)
             },
             onError = { code, message ->
                 camHandler?.removeCallbacks(watchdog)
                 switching = false
+                awaitingFirstFrameAfterSwitch = false
                 Log.e(tag, "switch open failed ($code: $message)")
                 result.error(code, message, null)
             },

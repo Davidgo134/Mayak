@@ -83,7 +83,7 @@ class VideoNoteController {
       return;
     }
     try {
-      final ok = await _rec.init();
+      final ok = await _rec.init(front: isFront);
       if (!ok) {
         if (isMounted()) {
           showCustomNotification(contextOf(), 'Камера недоступна');
@@ -93,9 +93,6 @@ class VideoNoteController {
       if (!isMounted() || !_videoNoteMode.value) {
         await _disposeCamera();
         return;
-      }
-      if (isFront != _rec.isFront) {
-        await _rec.switchCamera();
       }
       _isFrontCamera.value = _rec.isFront;
       _textureId.value = _rec.textureId;
