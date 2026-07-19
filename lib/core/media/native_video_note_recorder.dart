@@ -12,6 +12,7 @@ class NativeVideoNoteRecorder {
   static const _channel = MethodChannel('ru.komet.app/video_note');
 
   int? textureId;
+  bool isFront = true;
   bool get isAvailable => Platform.isAndroid;
 
   Future<bool> init({bool front = true}) async {
@@ -21,9 +22,25 @@ class NativeVideoNoteRecorder {
         'front': front,
       });
       textureId = res?['textureId'] as int?;
+      if (textureId != null) isFront = front;
       return textureId != null;
     } catch (e) {
       logger.w('NativeVideoNoteRecorder.init: $e');
+      return false;
+    }
+  }
+
+  /// Переключает фронтальную/основную камеру. Работает как перед записью
+  /// (в режиме превью), так и во время активной записи — камера
+  /// переоткрывается "на лету", без прерывания MediaRecorder.
+  Future<bool> switchCamera() async {
+    if (!isAvailable || textureId == null) return false;
+    try {
+      await _channel.invokeMethod('switchCamera');
+      isFront = !isFront;
+      return true;
+    } catch (e) {
+      logger.w('NativeVideoNoteRecorder.switchCamera: $e');
       return false;
     }
   }

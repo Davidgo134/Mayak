@@ -242,6 +242,8 @@ class MainActivity : FlutterActivity() {
                     ?: result.error("NOT_READY", "recorder not initialized", null)
                 "stop" -> noteRecorder?.stop(result)
                     ?: result.error("NOT_READY", "recorder not initialized", null)
+                "switchCamera" -> noteRecorder?.switchCamera(result)
+                    ?: result.error("NOT_READY", "recorder not initialized", null)
                 "dispose" -> {
                     noteRecorder?.dispose()
                     noteRecorder = null

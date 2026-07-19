@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "ru.komet" "\0"
-            VALUE "FileDescription", "Komet" "\0"
+            VALUE "FileDescription", "Маяк" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "Komet" "\0"
+            VALUE "InternalName", "Маяк" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 ru.komet. All rights reserved." "\0"
-            VALUE "OriginalFilename", "Komet.exe" "\0"
-            VALUE "ProductName", "Komet" "\0"
+            VALUE "OriginalFilename", "Маяк.exe" "\0"
+            VALUE "ProductName", "Маяк" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

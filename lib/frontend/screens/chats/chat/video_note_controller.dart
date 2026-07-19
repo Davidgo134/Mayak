@@ -28,6 +28,7 @@ class VideoNoteController {
   final ValueNotifier<bool> _videoNoteMode = ValueNotifier(false);
   final ValueNotifier<int?> _textureId = ValueNotifier(null);
   final ValueNotifier<bool> _camReady = ValueNotifier(false);
+  final ValueNotifier<bool> _isFrontCamera = ValueNotifier(true);
   final ValueNotifier<bool> _isRecording = ValueNotifier(false);
   final ValueNotifier<int> _elapsedMs = ValueNotifier(0);
   final ValueNotifier<double> _cancelDrag = ValueNotifier(0);
@@ -39,6 +40,7 @@ class VideoNoteController {
 
   ValueListenable<bool> get videoNoteMode => _videoNoteMode;
   ValueListenable<bool> get camReady => _camReady;
+  ValueListenable<bool> get isFrontCamera => _isFrontCamera;
   ValueListenable<bool> get isRecording => _isRecording;
 
   Future<void> toggleMode() async {
@@ -49,6 +51,19 @@ class VideoNoteController {
       await _initCamera();
     } else {
       await _disposeCamera();
+    }
+  }
+
+  /// Переключает фронтальную/основную камеру. Доступно и до записи (в
+  /// режиме превью), и во время активной записи — не прерывает съёмку.
+  Future<void> switchCamera() async {
+    if (_rec.textureId == null) return;
+    Haptics.tap();
+    final ok = await _rec.switchCamera();
+    if (ok) {
+      _isFrontCamera.value = _rec.isFront;
+    } else if (isMounted()) {
+      showCustomNotification(contextOf(), 'Не удалось переключить камеру');
     }
   }
 
@@ -174,47 +189,69 @@ class VideoNoteController {
       builder: (context) {
         final texId = _textureId.value;
         return Positioned.fill(
-          child: IgnorePointer(
-            child: Container(
-              color: Colors.black.withValues(alpha: 0.55),
-              alignment: Alignment.center,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ClipOval(
-                    child: SizedBox(
-                      width: 260,
-                      height: 260,
-                      child: texId != null
-                          ? Texture(textureId: texId)
-                          : Container(color: Colors.black),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  ValueListenableBuilder<int>(
-                    valueListenable: _elapsedMs,
-                    builder: (context, ms, _) => Text(
-                      formatElapsed(ms),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontFeatures: [ui.FontFeature.tabularFigures()],
+          child: Container(
+            color: Colors.black.withValues(alpha: 0.55),
+            alignment: Alignment.center,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    IgnorePointer(
+                      child: ClipOval(
+                        child: SizedBox(
+                          width: 260,
+                          height: 260,
+                          child: texId != null
+                              ? Texture(textureId: texId)
+                              : Container(color: Colors.black),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  ValueListenableBuilder<double>(
-                    valueListenable: _cancelDrag,
-                    builder: (context, drag, _) => Opacity(
-                      opacity: (0.5 + drag * 0.5).clamp(0.0, 1.0),
-                      child: const Text(
-                        '‹ влево — отмена',
-                        style: TextStyle(color: Colors.white70, fontSize: 13),
+                    Positioned(
+                      right: 4,
+                      bottom: 4,
+                      child: Material(
+                        color: Colors.black.withValues(alpha: 0.45),
+                        shape: const CircleBorder(),
+                        child: IconButton(
+                          icon: const Icon(
+                            Icons.cameraswitch,
+                            color: Colors.white,
+                            size: 22,
+                          ),
+                          onPressed: switchCamera,
+                          tooltip: 'Переключить камеру',
+                        ),
                       ),
                     ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                ValueListenableBuilder<int>(
+                  valueListenable: _elapsedMs,
+                  builder: (context, ms, _) => Text(
+                    formatElapsed(ms),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontFeatures: [ui.FontFeature.tabularFigures()],
+                    ),
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 8),
+                ValueListenableBuilder<double>(
+                  valueListenable: _cancelDrag,
+                  builder: (context, drag, _) => Opacity(
+                    opacity: (0.5 + drag * 0.5).clamp(0.0, 1.0),
+                    child: const Text(
+                      '‹ влево — отмена',
+                      style: TextStyle(color: Colors.white70, fontSize: 13),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         );
@@ -236,6 +273,7 @@ class VideoNoteController {
     _textureId.dispose();
     _videoNoteMode.dispose();
     _camReady.dispose();
+    _isFrontCamera.dispose();
     _isRecording.dispose();
     _elapsedMs.dispose();
     _cancelDrag.dispose();

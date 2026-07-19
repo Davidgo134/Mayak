@@ -244,6 +244,35 @@ class VideoNoteRecorder(
         )
     }
 
+    // Переключение фронтальной/основной камеры без остановки записи: закрываем
+    // текущую camera session+device, выбираем камеру с противоположным facing и
+    // переоткрываем на тот же OES SurfaceTexture. GL-конвейер и MediaRecorder
+    // не трогаем — рекордер продолжает писать кадры с той же record-surface.
+    fun switchCamera(rawResult: MethodChannel.Result) {
+        val result = OnceResult(rawResult)
+        val newFacing = if (lensFacing == CameraCharacteristics.LENS_FACING_FRONT) {
+            CameraCharacteristics.LENS_FACING_BACK
+        } else {
+            CameraCharacteristics.LENS_FACING_FRONT
+        }
+        if (!selectCamera(newFacing)) {
+            result.error("NO_CAMERA", "requested camera not found", null)
+            return
+        }
+        try {
+            session?.close()
+        } catch (_: Exception) {}
+        session = null
+        cameraDevice?.close()
+        cameraDevice = null
+        camTexture?.setDefaultBufferSize(camSize.width, camSize.height)
+        val entryId = flutterEntry?.id() ?: run {
+            result.error("NOT_READY", "texture entry missing", null)
+            return
+        }
+        openCamera(result, entryId)
+    }
+
     private fun startPreviewSession(result: MethodChannel.Result, textureId: Long) {
         val device = cameraDevice ?: return
         val camSurface = camInputSurface ?: return
