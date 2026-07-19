@@ -74,6 +74,13 @@ android {
                 storePassword = keystoreProperties["storePassword"] as String
             }
         }
+        getByName("debug") {
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+            storeFile = rootProject.file("debug.keystore")
+            storePassword = "android"
+            storeType = "PKCS12"
+        }
     }
 
     buildTypes {
