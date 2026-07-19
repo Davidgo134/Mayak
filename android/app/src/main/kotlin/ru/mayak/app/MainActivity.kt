@@ -67,6 +67,9 @@ class MainActivity : FlutterActivity() {
     private val nfcReaderCallback = NfcAdapter.ReaderCallback { tag -> onNfcTagDiscovered(tag) }
 
     private var noteRecorder: VideoNoteRecorder? = null
+    private var pendingCameraInitFront: Boolean = true
+    private var pendingCameraInitResult: MethodChannel.Result? = null
+    private var textureRenderer: io.flutter.view.TextureRegistry? = null
     private var ble: BleContactExchange? = null
     private var pendingSelfId = 0L
     private var pendingSelfPhone = 0L
@@ -83,6 +86,7 @@ class MainActivity : FlutterActivity() {
         const val NFC_PHASE_MIN_MS = 350L
         const val NFC_PHASE_JITTER_MS = 400
         const val BLE_PERMS_REQUEST = 7711
+        const val CAMERA_PERMS_REQUEST = 7712
         val NFC_READER_FLAGS = NfcAdapter.FLAG_READER_NFC_A or
             NfcAdapter.FLAG_READER_NFC_B or
             NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK
@@ -111,6 +115,7 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
+        textureRenderer = flutterEngine.renderer
         nfcAdapter = NfcAdapter.getDefaultAdapter(this)
 
         MethodChannel(
@@ -233,10 +238,24 @@ class MainActivity : FlutterActivity() {
             when (call.method) {
                 "init" -> {
                     val front = call.argument<Boolean>("front") ?: true
-                    val rec = VideoNoteRecorder(applicationContext, flutterEngine.renderer)
-                    noteRecorder?.dispose()
-                    noteRecorder = rec
-                    rec.init(front, result)
+                    if (ContextCompat.checkSelfPermission(
+                            this,
+                            Manifest.permission.CAMERA,
+                        ) != PackageManager.PERMISSION_GRANTED
+                    ) {
+                        pendingCameraInitFront = front
+                        pendingCameraInitResult = result
+                        ActivityCompat.requestPermissions(
+                            this,
+                            arrayOf(Manifest.permission.CAMERA),
+                            CAMERA_PERMS_REQUEST,
+                        )
+                    } else {
+                        val rec = VideoNoteRecorder(applicationContext, flutterEngine.renderer)
+                        noteRecorder?.dispose()
+                        noteRecorder = rec
+                        rec.init(front, result)
+                    }
                 }
                 "start" -> noteRecorder?.start(result)
                     ?: result.error("NOT_READY", "recorder not initialized", null)
@@ -574,6 +593,22 @@ class MainActivity : FlutterActivity() {
         grantResults: IntArray,
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == CAMERA_PERMS_REQUEST) {
+            val granted = grantResults.isNotEmpty() &&
+                grantResults.all { it == PackageManager.PERMISSION_GRANTED }
+            val pendingResult = pendingCameraInitResult
+            pendingCameraInitResult = null
+            if (pendingResult == null) return
+            if (granted) {
+                val rec = VideoNoteRecorder(applicationContext, textureRenderer!!)
+                noteRecorder?.dispose()
+                noteRecorder = rec
+                rec.init(pendingCameraInitFront, pendingResult)
+            } else {
+                pendingResult.error("NO_PERMISSION", "camera permission required", null)
+            }
+            return
+        }
         if (requestCode != BLE_PERMS_REQUEST) return
         if (!NfcExchange.active) return
         val granted = grantResults.isNotEmpty() &&

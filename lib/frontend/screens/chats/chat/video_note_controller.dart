@@ -208,10 +208,9 @@ class VideoNoteController {
       builder: (context) {
         final texId = _textureId.value;
         return Positioned.fill(
-          child: IgnorePointer(
-            child: Container(
-              color: Colors.black.withValues(alpha: 0.55),
-              alignment: Alignment.center,
+          child: Container(
+            color: Colors.black.withValues(alpha: 0.55),
+            alignment: Alignment.center,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -311,7 +310,6 @@ class VideoNoteController {
                 ],
               ),
             ),
-          ),
         );
       },
     );
