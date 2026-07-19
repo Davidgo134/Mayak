@@ -382,32 +382,24 @@ class ComposerInputBar extends StatelessWidget {
                                                     active:
                                                         recording && !locked,
                                                   );
-                                              return GestureDetector(
-                                                onTap: sendMode
-                                                    ? null
-                                                    : note.toggleMode,
-                                                onLongPressStart: sendMode
-                                                    ? null
-                                                    : (_) => videoMode
-                                                          ? note.start()
-                                                          : voiceRec.start(),
-                                                onLongPressMoveUpdate: sendMode
-                                                    ? null
-                                                    : (d) => videoMode
-                                                          ? note.handleDrag(
-                                                              d.offsetFromOrigin,
-                                                            )
-                                                          : voiceRec.handleDrag(
-                                                              d.offsetFromOrigin,
-                                                            ),
-                                                onLongPressEnd: sendMode
-                                                    ? null
-                                                    : (_) => videoMode
-                                                          ? note.handleEnd()
-                                                          : voiceRec
-                                                                .handleEnd(),
+                                              return Builder(
+                                                builder: (context) => GestureDetector(
+                                                  onTap: sendMode
+                                                      ? null
+                                                      : note.toggleMode,
+                                                  onLongPressStart: sendMode
+                                                      ? null
+                                                      : (_) => videoMode
+                                                            ? _showCameraMenu(context, cs, note)
+                                                            : voiceRec.start(),
+                                                  onLongPressMoveUpdate: sendMode || videoMode
+                                                      ? null
+                                                      : (d) => voiceRec.handleDrag(d.offsetFromOrigin),
+                                                  onLongPressEnd: sendMode || videoMode
+                                                      ? null
+                                                      : (_) => voiceRec.handleEnd(),
                                                 child: visual,
-                                              );
+                                              ));
                                                   },
                                                 ),
                                           ),
@@ -1144,4 +1136,51 @@ IconData _iconForFilename(String? name) {
     default:
       return Symbols.description;
   }
+
+  void _showCameraMenu(BuildContext context, ColorScheme cs, VideoNoteController note) {
+    Haptics.tap();
+    final RenderBox button = context.findRenderObject() as RenderBox;
+    final RenderBox overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final Offset position = button.localToGlobal(Offset.zero, ancestor: overlay);
+
+    showMenu<bool>(
+      context: context,
+      color: const Color(0xFF1C1C1E),
+      elevation: 8,
+      shape: RoundedRectangleBinding(borderRadius: BorderRadius.circular(12)),
+      position: RelativeRect.fromLTRB(
+        position.dx - 100, 
+        position.dy - 120, 
+        position.dx + button.size.width, 
+        position.dy,
+      ),
+      items: [
+        PopupMenuItem<bool>(
+          value: true,
+          child: Row(
+            children: [
+              const Icon(Icons.person_outline, color: Colors.white, size: 20),
+              const SizedBox(width: 12),
+              const Text('Фронтальная', style: TextStyle(color: Colors.white, fontSize: 15)),
+            ],
+          ),
+        ),
+        PopupMenuItem<bool>(
+          value: false,
+          child: Row(
+            children: [
+              const Icon(Icons.camera_alt_outlined, color: Colors.white, size: 20),
+              const SizedBox(width: 12),
+              const Text('Основная', style: TextStyle(color: Colors.white, fontSize: 15)),
+            ],
+          ),
+        ),
+      ],
+    ).then((isFront) {
+      if (isFront != null) {
+        note.startWithCamera(isFront: isFront);
+      }
+    });
+  }
+
 }

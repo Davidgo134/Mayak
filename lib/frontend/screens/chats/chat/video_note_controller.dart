@@ -76,7 +76,7 @@ class VideoNoteController {
     }
   }
 
-  Future<void> _initCamera() async {
+  Future<void> _initCamera({bool isFront = true}) async {
     if (_rec.textureId != null) return;
     if (!_rec.isAvailable) {
       if (isMounted()) showCustomNotification(contextOf(), 'Камера недоступна');
@@ -94,6 +94,10 @@ class VideoNoteController {
         await _disposeCamera();
         return;
       }
+      if (isFront != _rec.isFront) {
+        await _rec.switchCamera();
+      }
+      _isFrontCamera.value = _rec.isFront;
       _textureId.value = _rec.textureId;
       _camReady.value = true;
     } catch (e) {
@@ -106,6 +110,56 @@ class VideoNoteController {
     _camReady.value = false;
     _textureId.value = null;
     await _rec.dispose();
+  }
+
+  
+  Future<void> startWithCamera({required bool isFront}) async {
+    if (_isRecording.value) return;
+    _stopRequested = false;
+
+    // Сразу лочим запись, чтобы она шла без удержания
+    _locked.value = true;
+
+    if (_rec.textureId == null) {
+      await _initCamera(isFront: isFront);
+    } else {
+      if (isFront != _isFrontCamera.value) {
+        await switchCamera();
+      }
+    }
+
+    try {
+      final ok = await _rec.start();
+      if (!ok) {
+        _isRecording.value = false;
+        return;
+      }
+      if (!isMounted()) {
+        await _rec.stop();
+        return;
+      }
+      _stopwatch
+        ..reset()
+        ..start();
+      _elapsedMs.value = 0;
+      _cancelDrag.value = 0;
+      _lockDrag.value = 0;
+      _cancelled = false;
+      _isRecording.value = true;
+      FocusManager.instance.primaryFocus?.unfocus();
+      Haptics.send();
+      _timer = Timer.periodic(const Duration(milliseconds: 100), (_) {
+        _elapsedMs.value = _stopwatch.elapsedMilliseconds;
+      });
+      _showOverlay();
+      if (_stopRequested) {
+        _stopRequested = false;
+        await stop(cancel: false);
+      }
+    } catch (e) {
+      logger.w('startNoteRecording: $e');
+      _isRecording.value = false;
+    }
   }
 
   Future<void> start() async {
@@ -223,53 +277,14 @@ class VideoNoteController {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Stack(
-                  alignment: Alignment.bottomRight,
-                  children: [
-                    ClipOval(
-                      child: SizedBox(
-                        width: 260,
-                        height: 260,
-                        child: texId != null
-                            ? Texture(textureId: texId)
-                            : Container(color: Colors.black),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(right: 12, bottom: 12),
-                      child: ValueListenableBuilder<bool>(
-                        valueListenable: _switchingCamera,
-                        builder: (context, switching, _) => IgnorePointer(
-                          ignoring: switching,
-                          child: Material(
-                            color: Colors.black.withValues(alpha: 0.5),
-                            shape: const CircleBorder(),
-                            child: InkWell(
-                              onTap: switching ? null : switchCamera,
-                              customBorder: const CircleBorder(),
-                              child: Padding(
-                                padding: const EdgeInsets.all(8),
-                                child: switching
-                                    ? const SizedBox(
-                                        width: 22,
-                                        height: 22,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: Colors.white,
-                                        ),
-                                      )
-                                    : const Icon(
-                                        Icons.cameraswitch,
-                                        color: Colors.white,
-                                        size: 22,
-                                      ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                ClipOval(
+                  child: SizedBox(
+                    width: 320, // Увеличил размер кружка как на скрине
+                    height: 320,
+                    child: texId != null
+                        ? Texture(textureId: texId)
+                        : Container(color: Colors.black),
+                  ),
                 ),
                 const SizedBox(height: 20),
                 _buildActionBar(cs),
@@ -285,7 +300,7 @@ class VideoNoteController {
 
   Widget _buildActionBar(ColorScheme cs) {
     return Container(
-      constraints: const BoxConstraints(minWidth: 260),
+      constraints: const BoxConstraints(minWidth: 300),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
         color: const Color(0xFF1C1C1E),
@@ -293,27 +308,21 @@ class VideoNoteController {
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Material(
             color: Colors.transparent,
+            shape: const CircleBorder(),
             child: InkWell(
-              borderRadius: BorderRadius.circular(20),
-              onTap: () => stop(cancel: true),
+              customBorder: const CircleBorder(),
+              onTap: () => switchCamera(),
               child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                child: Text(
-                  'ОТМЕНА',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.3,
-                  ),
-                ),
+                padding: EdgeInsets.all(10),
+                child: Icon(Icons.flip_camera_ios_outlined, color: Colors.white, size: 24),
               ),
             ),
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 8),
           Container(
             width: 8,
             height: 8,
@@ -334,16 +343,36 @@ class VideoNoteController {
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 16),
           Material(
-            color: cs.primary,
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () => stop(cancel: true),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                child: Text(
+                  'ОТМЕНА',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Material(
+            color: const Color(0xFFE5CF72), // Желтоватый цвет как на скрине
             shape: const CircleBorder(),
             child: InkWell(
               customBorder: const CircleBorder(),
               onTap: () => stop(cancel: false),
               child: const Padding(
                 padding: EdgeInsets.all(10),
-                child: Icon(Icons.arrow_upward, color: Colors.white, size: 20),
+                child: Icon(Icons.send, color: Colors.black87, size: 20),
               ),
             ),
           ),
