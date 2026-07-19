@@ -34,6 +34,7 @@ class VideoNoteController {
   final ValueNotifier<bool> _isFrontCamera = ValueNotifier(true);
   final ValueNotifier<bool> _locked = ValueNotifier(false);
   final ValueNotifier<double> _lockDrag = ValueNotifier(0);
+  final ValueNotifier<bool> _switchingCamera = ValueNotifier(false);
   static const double _lockThreshold = 90;
   final Stopwatch _stopwatch = Stopwatch();
   Timer? _timer;
@@ -45,15 +46,22 @@ class VideoNoteController {
   ValueListenable<bool> get camReady => _camReady;
   ValueListenable<bool> get isRecording => _isRecording;
   ValueListenable<bool> get isFrontCamera => _isFrontCamera;
+  ValueListenable<bool> get switchingCamera => _switchingCamera;
   ValueListenable<bool> get locked => _locked;
   ValueListenable<double> get lockDrag => _lockDrag;
 
   Future<void> switchCamera() async {
     if (_rec.textureId == null) return;
-    final ok = await _rec.switchCamera();
-    if (ok) {
-      _isFrontCamera.value = _rec.isFront;
-      Haptics.tap();
+    if (_switchingCamera.value) return;
+    _switchingCamera.value = true;
+    try {
+      final ok = await _rec.switchCamera();
+      if (ok) {
+        _isFrontCamera.value = _rec.isFront;
+        Haptics.tap();
+      }
+    } finally {
+      _switchingCamera.value = false;
     }
   }
 
@@ -207,114 +215,141 @@ class VideoNoteController {
     _overlay = OverlayEntry(
       builder: (context) {
         final texId = _textureId.value;
+        final cs = Theme.of(context).colorScheme;
         return Positioned.fill(
           child: Container(
             color: Colors.black.withValues(alpha: 0.55),
             alignment: Alignment.center,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Stack(
-                    alignment: Alignment.bottomRight,
-                    children: [
-                      ClipOval(
-                        child: SizedBox(
-                          width: 260,
-                          height: 260,
-                          child: texId != null
-                              ? Texture(textureId: texId)
-                              : Container(color: Colors.black),
-                        ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Stack(
+                  alignment: Alignment.bottomRight,
+                  children: [
+                    ClipOval(
+                      child: SizedBox(
+                        width: 260,
+                        height: 260,
+                        child: texId != null
+                            ? Texture(textureId: texId)
+                            : Container(color: Colors.black),
                       ),
-                      Padding(
-                        padding: const EdgeInsets.only(right: 12, bottom: 12),
-                        child: IgnorePointer(
-                          ignoring: false,
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(right: 12, bottom: 12),
+                      child: ValueListenableBuilder<bool>(
+                        valueListenable: _switchingCamera,
+                        builder: (context, switching, _) => IgnorePointer(
+                          ignoring: switching,
                           child: Material(
                             color: Colors.black.withValues(alpha: 0.5),
                             shape: const CircleBorder(),
                             child: InkWell(
-                              onTap: switchCamera,
+                              onTap: switching ? null : switchCamera,
                               customBorder: const CircleBorder(),
-                              child: const Padding(
-                                padding: EdgeInsets.all(8),
-                                child: Icon(
-                                  Icons.cameraswitch,
-                                  color: Colors.white,
-                                  size: 22,
-                                ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(8),
+                                child: switching
+                                    ? const SizedBox(
+                                        width: 22,
+                                        height: 22,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : const Icon(
+                                        Icons.cameraswitch,
+                                        color: Colors.white,
+                                        size: 22,
+                                      ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  ValueListenableBuilder<int>(
-                    valueListenable: _elapsedMs,
-                    builder: (context, ms, _) => Text(
-                      formatElapsed(ms),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontFeatures: [ui.FontFeature.tabularFigures()],
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  ValueListenableBuilder<bool>(
-                    valueListenable: _locked,
-                    builder: (context, locked, _) {
-                      if (locked) {
-                        return IgnorePointer(
-                          ignoring: false,
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: () => stop(cancel: false),
-                              borderRadius: BorderRadius.circular(20),
-                              child: const Padding(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 8,
-                                ),
-                                child: Text(
-                                  '⏹ нажмите, чтобы остановить',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      }
-                      return ValueListenableBuilder<double>(
-                        valueListenable: _cancelDrag,
-                        builder: (context, drag, _) => Opacity(
-                          opacity: (0.5 + drag * 0.5).clamp(0.0, 1.0),
-                          child: const Text(
-                            '‹ влево — отмена   •   ↑ вверх — не держать',
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                _buildActionBar(cs),
+              ],
             ),
+          ),
         );
       },
     );
     final overlay = Overlay.of(contextOf(), rootOverlay: true);
     overlay.insert(_overlay!);
+  }
+
+  Widget _buildActionBar(ColorScheme cs) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 260),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1C1C1E),
+        borderRadius: BorderRadius.circular(28),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () => stop(cancel: true),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                child: Text(
+                  'ОТМЕНА',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Container(
+            width: 8,
+            height: 8,
+            margin: const EdgeInsets.only(right: 8),
+            decoration: const BoxDecoration(
+              color: Colors.redAccent,
+              shape: BoxShape.circle,
+            ),
+          ),
+          ValueListenableBuilder<int>(
+            valueListenable: _elapsedMs,
+            builder: (context, ms, _) => Text(
+              formatElapsed(ms),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 15,
+                fontFeatures: [ui.FontFeature.tabularFigures()],
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Material(
+            color: cs.primary,
+            shape: const CircleBorder(),
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: () => stop(cancel: false),
+              child: const Padding(
+                padding: EdgeInsets.all(10),
+                child: Icon(Icons.arrow_upward, color: Colors.white, size: 20),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _hideOverlay() {

@@ -437,40 +437,84 @@ class VideoNoteRecorder(
     }
 
 
+    @Volatile private var switching = false
+
     fun switchCamera(rawResult: MethodChannel.Result) {
         val result = OnceResult(rawResult)
+        if (switching) {
+            result.error("SWITCH_BUSY", "switch already in progress", null)
+            return
+        }
+        switching = true
+
         val newFacing = if (lensFacing == CameraCharacteristics.LENS_FACING_FRONT) {
             CameraCharacteristics.LENS_FACING_BACK
         } else {
             CameraCharacteristics.LENS_FACING_FRONT
         }
         if (!selectCamera(newFacing)) {
+            switching = false
             result.error("NO_CAMERA", "requested camera not found", null)
             return
         }
         val wasRecording = recording
-        try {
-            session?.close()
-        } catch (_: Exception) {}
-        session = null
-        cameraDevice?.close()
-        cameraDevice = null
-
-        glHandler?.post {
-            try {
-                camTexture?.setDefaultBufferSize(camSize.width, camSize.height)
-            } catch (e: Exception) {
-                Log.w(tag, "switchCamera buffer resize: ${e.message}")
-            }
-        }
 
         camHandler?.post {
-            openCameraForSwitch(result, wasRecording)
+            try {
+                session?.close()
+            } catch (_: Exception) {}
+            session = null
+
+            try {
+                cameraDevice?.close()
+            } catch (_: Exception) {}
+            cameraDevice = null
+
+            glHandler?.post {
+                try {
+                    camTexture?.setDefaultBufferSize(camSize.width, camSize.height)
+                } catch (e: Exception) {
+                    Log.w(tag, "switchCamera buffer resize: ${e.message}")
+                }
+            }
+
+            // close() ne гарантирует немедленное освобождение камеры на
+            // уровне HAL — короткая задержка перед повторным open()
+            // устраняет гонку "camera device already in use", из-за которой
+            // раньше зависал предпросмотр.
+            camHandler?.postDelayed({
+                openCameraForSwitchWithRetry(result, wasRecording, attempt = 0)
+            }, 150)
         }
     }
 
+    private fun openCameraForSwitchWithRetry(
+        result: OnceResult,
+        wasRecording: Boolean,
+        attempt: Int,
+    ) {
+        openCameraForSwitch(
+            onSuccess = { switching = false; result.success(it) },
+            onError = { code, message ->
+                if (attempt < 3) {
+                    camHandler?.postDelayed({
+                        openCameraForSwitchWithRetry(result, wasRecording, attempt + 1)
+                    }, 200L * (attempt + 1))
+                } else {
+                    switching = false
+                    result.error(code, message, null)
+                }
+            },
+            wasRecording = wasRecording,
+        )
+    }
+
     @Suppress("MissingPermission")
-    private fun openCameraForSwitch(result: MethodChannel.Result, wasRecording: Boolean) {
+    private fun openCameraForSwitch(
+        onSuccess: (Map<String, Any?>) -> Unit,
+        onError: (String, String?) -> Unit,
+        wasRecording: Boolean,
+    ) {
         try {
             manager().openCamera(
                 cameraId,
@@ -480,7 +524,7 @@ class VideoNoteRecorder(
                         cameraDevice = device
                         val camSurface = camInputSurface
                         if (camSurface == null) {
-                            result.error("SWITCH_FAILED", "no cam input surface", null)
+                            onError("SWITCH_FAILED", "no cam input surface")
                             return
                         }
                         val surfaces = if (wasRecording && recorderSurface != null) {
@@ -508,7 +552,7 @@ class VideoNoteRecorder(
                                 }
                                 s.setRepeatingRequest(req.build(), null, camHandler)
                                 Log.i(tag, "switch session configured, recording=$wasRecording")
-                                result.success(
+                                onSuccess(
                                     mapOf(
                                         "isFront" to (lensFacing == CameraCharacteristics.LENS_FACING_FRONT),
                                     ),
@@ -516,24 +560,25 @@ class VideoNoteRecorder(
                             }
                         } catch (e: Exception) {
                             Log.e(tag, "switch session failed", e)
-                            result.error("SWITCH_FAILED", e.message, null)
+                            onError("SWITCH_FAILED", e.message)
                         }
                     }
 
                     override fun onDisconnected(device: CameraDevice) {
                         device.close(); cameraDevice = null
+                        onError("CAMERA_DISCONNECTED", "camera disconnected during switch")
                     }
 
                     override fun onError(device: CameraDevice, error: Int) {
                         device.close(); cameraDevice = null
-                        result.error("CAMERA_ERROR", "code $error", null)
+                        onError("CAMERA_ERROR", "code $error")
                     }
                 },
                 camHandler,
             )
         } catch (e: Exception) {
             Log.e(tag, "openCameraForSwitch failed", e)
-            result.error("SWITCH_FAILED", e.message, null)
+            onError("SWITCH_FAILED", e.message)
         }
     }
 
