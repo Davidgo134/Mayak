@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import 'package:komet/backend/modules/messages.dart';
+import 'package:komet/core/utils/haptics.dart';
 import 'package:komet/core/config/app_chat_chrome.dart';
 import 'package:komet/core/config/app_colors.dart';
 import 'package:komet/core/config/app_composer_background.dart';
@@ -754,6 +755,52 @@ class ComposerInputBar extends StatelessWidget {
       ),
     );
   }
+  void _showCameraMenu(BuildContext context, ColorScheme cs, VideoNoteController note) {
+    Haptics.tap();
+    final RenderBox button = context.findRenderObject() as RenderBox;
+    final RenderBox overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final Offset position = button.localToGlobal(Offset.zero, ancestor: overlay);
+
+    showMenu<bool>(
+      context: context,
+      color: const Color(0xFF1C1C1E),
+      elevation: 8,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      position: RelativeRect.fromLTRB(
+        position.dx - 100,
+        position.dy - 120,
+        position.dx + button.size.width,
+        position.dy,
+      ),
+      items: [
+        PopupMenuItem<bool>(
+          value: true,
+          child: Row(
+            children: [
+              const Icon(Icons.person_outline, color: Colors.white, size: 20),
+              const SizedBox(width: 12),
+              const Text('Фронтальная', style: TextStyle(color: Colors.white, fontSize: 15)),
+            ],
+          ),
+        ),
+        PopupMenuItem<bool>(
+          value: false,
+          child: Row(
+            children: [
+              const Icon(Icons.camera_alt_outlined, color: Colors.white, size: 20),
+              const SizedBox(width: 12),
+              const Text('Основная', style: TextStyle(color: Colors.white, fontSize: 15)),
+            ],
+          ),
+        ),
+      ],
+    ).then((isFront) {
+      if (isFront != null) {
+        note.startWithCamera(isFront: isFront);
+      }
+    });
+  }
+
 }
 
 class _AttachButton extends StatelessWidget {
@@ -1136,51 +1183,4 @@ IconData _iconForFilename(String? name) {
     default:
       return Symbols.description;
   }
-
-  void _showCameraMenu(BuildContext context, ColorScheme cs, VideoNoteController note) {
-    Haptics.tap();
-    final RenderBox button = context.findRenderObject() as RenderBox;
-    final RenderBox overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
-    final Offset position = button.localToGlobal(Offset.zero, ancestor: overlay);
-
-    showMenu<bool>(
-      context: context,
-      color: const Color(0xFF1C1C1E),
-      elevation: 8,
-      shape: RoundedRectangleBinding(borderRadius: BorderRadius.circular(12)),
-      position: RelativeRect.fromLTRB(
-        position.dx - 100, 
-        position.dy - 120, 
-        position.dx + button.size.width, 
-        position.dy,
-      ),
-      items: [
-        PopupMenuItem<bool>(
-          value: true,
-          child: Row(
-            children: [
-              const Icon(Icons.person_outline, color: Colors.white, size: 20),
-              const SizedBox(width: 12),
-              const Text('Фронтальная', style: TextStyle(color: Colors.white, fontSize: 15)),
-            ],
-          ),
-        ),
-        PopupMenuItem<bool>(
-          value: false,
-          child: Row(
-            children: [
-              const Icon(Icons.camera_alt_outlined, color: Colors.white, size: 20),
-              const SizedBox(width: 12),
-              const Text('Основная', style: TextStyle(color: Colors.white, fontSize: 15)),
-            ],
-          ),
-        ),
-      ],
-    ).then((isFront) {
-      if (isFront != null) {
-        note.startWithCamera(isFront: isFront);
-      }
-    });
-  }
-
 }
