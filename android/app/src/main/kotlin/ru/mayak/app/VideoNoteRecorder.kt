@@ -284,18 +284,24 @@ class VideoNoteRecorder(
         val device = cameraDevice ?: return
         val camSurface = camInputSurface ?: return
         try {
-            createSession(listOf(camSurface)) { s ->
-                session = s
-                val req = device.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
-                req.addTarget(camSurface)
-                fpsRange?.let {
-                    req.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, it)
-                    Log.i(tag, "FPS_DIAG applied preview fpsRange=$it")
-                }
-                s.setRepeatingRequest(req.build(), null, camHandler)
-                Log.i(tag, "preview session configured")
-                result.success(mapOf("textureId" to textureId, "size" to edge))
-            }
+            createSession(
+                listOf(camSurface),
+                onReady = { s ->
+                    session = s
+                    val req = device.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
+                    req.addTarget(camSurface)
+                    fpsRange?.let {
+                        req.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, it)
+                        Log.i(tag, "FPS_DIAG applied preview fpsRange=$it")
+                    }
+                    s.setRepeatingRequest(req.build(), null, camHandler)
+                    Log.i(tag, "preview session configured")
+                    result.success(mapOf("textureId" to textureId, "size" to edge))
+                },
+                onFailed = {
+                    result.error("PREVIEW_FAILED", "session config failed", null)
+                },
+            )
         } catch (e: Exception) {
             Log.e(tag, "preview session failed", e)
             result.error("PREVIEW_FAILED", e.message, null)
@@ -459,6 +465,26 @@ class VideoNoteRecorder(
         }
         val wasRecording = recording
 
+        // Watchdog: если весь процесс переоткрытия камеры не завершится за
+        // разумное время -- сдаёмся вместо того, чтобы навечно висеть в
+        // ожидании на стороне Dart. Раньше здесь не было никакой защиты:
+        // если что-то на пути (GL-поток, HAL, callback) не срабатывало,
+        // await switchCamera() в Dart просто никогда не получал ответ, и
+        // превью зависало "мёртво" без какого-либо recovery.
+        val watchdog = Runnable {
+            if (switching) {
+                switching = false
+                Log.e(tag, "switchCamera watchdog fired -- forcing failure")
+                result.error("SWITCH_TIMEOUT", "camera switch timed out", null)
+            }
+        }
+        camHandler?.postDelayed(watchdog, 4000)
+
+        fun clearWatchdogAnd(action: () -> Unit) {
+            camHandler?.removeCallbacks(watchdog)
+            action()
+        }
+
         camHandler?.post {
             try {
                 session?.close()
@@ -470,25 +496,24 @@ class VideoNoteRecorder(
             } catch (_: Exception) {}
             cameraDevice = null
 
+            // ВАЖНО: ресайз буфера SurfaceTexture на glThread и повторное
+            // открытие камеры на camHandler -- это два НЕЗАВИСИМЫХ действия,
+            // им не нужно ждать друг друга последовательно. Раньше открытие
+            // камеры было вложено ВНУТРЬ glHandler.post{} -- если GL-поток
+            // по любой причине не мог обработать этот пост (исключение без
+            // перехвата в onFrame(), которое убивает HandlerThread, или
+            // просто затор в рендер-очереди), вложенный вызов открытия
+            // камеры никогда не выполнялся, и вся операция зависала
+            // намертво без единой ошибки в логе.
             glHandler?.post {
                 try {
                     camTexture?.setDefaultBufferSize(camSize.width, camSize.height)
                 } catch (e: Exception) {
                     Log.w(tag, "switchCamera buffer resize: ${e.message}")
                 }
-                // Camera2 doc: после CameraDevice.close() камера гарантированно
-                // свободна только в момент onClosed() СВОЕГО StateCallback --
-                // подписаться на него постфактум для чужого device нельзя.
-                // Раньше мы сразу же звали openCamera() и любую ошибку типа
-                // "camera device already in use" тихо проглатывали в catch --
-                // превью просто зависало на последнем кадре без вообще какого-
-                // либо recovery. Теперь: пробуем открыть немедленно, а если
-                // система ответит ошибкой (камера ещё не освободилась) --
-                // ПОВТОРЯЕМ open с нарастающей задержкой вместо того, чтобы
-                // сдаваться. Так реальный релиз камеры всегда будет дождан.
-                camHandler?.post {
-                    openCameraForSwitchWithRetry(result, wasRecording, attempt = 0)
-                }
+            }
+            openCameraForSwitchWithRetry(result, wasRecording, attempt = 0) {
+                clearWatchdogAnd {}
             }
         }
     }
@@ -497,17 +522,19 @@ class VideoNoteRecorder(
         result: OnceResult,
         wasRecording: Boolean,
         attempt: Int,
+        onSettled: () -> Unit,
     ) {
         openCameraForSwitch(
-            onSuccess = { switching = false; result.success(it) },
+            onSuccess = { onSettled(); switching = false; result.success(it) },
             onError = { code, message ->
                 if (attempt < 8) {
                     val delayMs = 100L * (attempt + 1)
                     Log.w(tag, "switch open failed ($code: $message), retry #$attempt in ${delayMs}ms")
                     camHandler?.postDelayed({
-                        openCameraForSwitchWithRetry(result, wasRecording, attempt + 1)
+                        openCameraForSwitchWithRetry(result, wasRecording, attempt + 1, onSettled)
                     }, delayMs)
                 } else {
+                    onSettled()
                     switching = false
                     Log.e(tag, "switch open exhausted retries ($code: $message)")
                     result.error(code, message, null)
@@ -541,31 +568,38 @@ class VideoNoteRecorder(
                             listOf(camSurface)
                         }
                         try {
-                            createSession(surfaces) { s ->
-                                session = s
-                                val req = device.createCaptureRequest(
-                                    if (wasRecording) {
-                                        CameraDevice.TEMPLATE_RECORD
-                                    } else {
-                                        CameraDevice.TEMPLATE_PREVIEW
-                                    },
-                                )
-                                req.addTarget(camSurface)
-                                if (wasRecording && recorderSurface != null) {
-                                    req.addTarget(recorderSurface!!)
-                                }
-                                fpsRange?.let {
-                                    req.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, it)
-                                    Log.i(tag, "FPS_DIAG applied switch fpsRange=$it")
-                                }
-                                s.setRepeatingRequest(req.build(), null, camHandler)
-                                Log.i(tag, "switch session configured, recording=$wasRecording")
-                                onSuccess(
-                                    mapOf(
-                                        "isFront" to (lensFacing == CameraCharacteristics.LENS_FACING_FRONT),
-                                    ),
-                                )
-                            }
+                            createSession(
+                                surfaces,
+                                onReady = { s ->
+                                    session = s
+                                    val req = device.createCaptureRequest(
+                                        if (wasRecording) {
+                                            CameraDevice.TEMPLATE_RECORD
+                                        } else {
+                                            CameraDevice.TEMPLATE_PREVIEW
+                                        },
+                                    )
+                                    req.addTarget(camSurface)
+                                    if (wasRecording && recorderSurface != null) {
+                                        req.addTarget(recorderSurface!!)
+                                    }
+                                    fpsRange?.let {
+                                        req.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, it)
+                                        Log.i(tag, "FPS_DIAG applied switch fpsRange=$it")
+                                    }
+                                    s.setRepeatingRequest(req.build(), null, camHandler)
+                                    Log.i(tag, "switch session configured, recording=$wasRecording")
+                                    onSuccess(
+                                        mapOf(
+                                            "isFront" to (lensFacing == CameraCharacteristics.LENS_FACING_FRONT),
+                                        ),
+                                    )
+                                },
+                                onFailed = {
+                                    Log.e(tag, "switch session config failed")
+                                    onError("SWITCH_FAILED", "session config failed")
+                                },
+                            )
                         } catch (e: Exception) {
                             Log.e(tag, "switch session failed", e)
                             onError("SWITCH_FAILED", e.message)
@@ -593,6 +627,7 @@ class VideoNoteRecorder(
     private fun createSession(
         surfaces: List<Surface>,
         onReady: (CameraCaptureSession) -> Unit,
+        onFailed: (() -> Unit)? = null,
     ) {
         val device = cameraDevice ?: return
         device.createCaptureSession(
@@ -601,6 +636,13 @@ class VideoNoteRecorder(
                 override fun onConfigured(s: CameraCaptureSession) = onReady(s)
                 override fun onConfigureFailed(s: CameraCaptureSession) {
                     Log.e(tag, "session config failed")
+                    // Раньше эта ошибка ТОЛЬКО логировалась и никак не
+                    // сообщалась вызывающему коду -- если конфигурация
+                    // сессии проваливалась (что случается, когда камера
+                    // ещё не до конца освободилась предыдущим владельцем),
+                    // весь вызов switchCamera/init просто зависал без
+                    // ответа Dart-стороне.
+                    onFailed?.invoke()
                 }
             },
             camHandler,

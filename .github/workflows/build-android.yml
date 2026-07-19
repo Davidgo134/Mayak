@@ -44,13 +44,25 @@ jobs:
           echo "org.gradle.caching=true" >> ~/.gradle/gradle.properties
           echo "org.gradle.parallel=true" >> ~/.gradle/gradle.properties
 
-      - name: Build Debug APK
-        run: flutter build apk --debug --flavor komet
+      - name: Build Profile APK
+        # Debug-режим Flutter выполняется через JIT без единой оптимизации --
+        # это ожидаемо в разы медленнее оригинального Komet, собранного в
+        # release/AOT, независимо от того, что менялось в коде приложения.
+        # Profile-сборка тоже AOT-компилируется (как release), поэтому даёт
+        # реальную, показательную производительность (близкую к продакшену),
+        # но при этом остаётся штатно устанавливаемым APK для быстрого теста
+        # без публикации в Play Store.
+        run: flutter build apk --profile --flavor komet
+
+      - name: Rename APK
+        run: |
+          mv build/app/outputs/flutter-apk/app-komet-profile.apk \
+             build/app/outputs/flutter-apk/app-mayak-profile.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: mayak-debug-apk
-          path: build/app/outputs/flutter-apk/app-komet-debug.apk
+          name: mayak-profile-apk
+          path: build/app/outputs/flutter-apk/app-mayak-profile.apk
           if-no-files-found: error
           retention-days: 30
