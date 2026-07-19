@@ -6217,12 +6217,19 @@ class _SelectableMessageRowState extends State<_SelectableMessageRow> {
   final GlobalKey _boundaryKey = GlobalKey();
   Offset? _lastTapDown;
   Timer? _openTimer;
+  VoidCallback? _closeActionsMenu;
 
   bool _isPinnedNow() => widget.isPinned();
 
   @override
   void dispose() {
     _openTimer?.cancel();
+    // Если строка сообщения уничтожается (например, пользователь ушёл с
+    // экрана чата), а меню действий/реакций ещё открыто -- принудительно
+    // закрываем его. Раньше меню оставалось висеть в общем Overlay
+    // приложения поверх следующего экрана (списка чатов).
+    _closeActionsMenu?.call();
+    _closeActionsMenu = null;
     super.dispose();
   }
 
@@ -6247,7 +6254,7 @@ class _SelectableMessageRowState extends State<_SelectableMessageRow> {
     Haptics.tap();
 
     final controller = MessageActionsController();
-    showMessageActions(
+    _closeActionsMenu = showMessageActions(
       context: ctx,
       snapshot: snapshot,
       originRect: rect,
@@ -6276,7 +6283,10 @@ class _SelectableMessageRowState extends State<_SelectableMessageRow> {
         await animojiModule.ensureLoaded();
         return _animojiReactionEmojis();
       },
-      onDispose: controller.dispose,
+      onDispose: () {
+        _closeActionsMenu = null;
+        controller.dispose();
+      },
     );
   }
 

@@ -97,7 +97,16 @@ class MessageActionsController extends ChangeNotifier {
   }
 }
 
-void showMessageActions({
+/// Показывает меню действий/реакций над сообщением.
+///
+/// Возвращает функцию принудительного немедленного закрытия оверлея (без
+/// анимации выезда), которую владелец должен вызвать из своего dispose(),
+/// если экран/строка сообщения уничтожаются, пока меню ещё открыто.
+/// Раньше этого не было: если пользователь открывал меню и тут же уходил
+/// с экрана чата (например, свайпом назад), запись строки сообщения
+/// удалялась, но сам OverlayEntry продолжал жить в общем Overlay
+/// приложения — и зависал поверх следующего экрана (списка чатов).
+VoidCallback showMessageActions({
   required BuildContext context,
   ui.Image? snapshot,
   required Rect originRect,
@@ -135,6 +144,12 @@ void showMessageActions({
 }) {
   final overlay = Overlay.of(context, rootOverlay: true);
   late OverlayEntry entry;
+  var removed = false;
+  void removeOnce() {
+    if (removed) return;
+    removed = true;
+    if (entry.mounted) entry.remove();
+  }
   entry = OverlayEntry(
     builder: (ctx) => _MessageActionsLayer(
       snapshot: snapshot,
@@ -162,12 +177,13 @@ void showMessageActions({
       quickReactions: quickReactions,
       loadReactionEmojis: loadReactionEmojis,
       onDismiss: () {
-        if (entry.mounted) entry.remove();
+        removeOnce();
         onDispose();
       },
     ),
   );
   overlay.insert(entry);
+  return removeOnce;
 }
 
 class _MessageActionsLayer extends StatefulWidget {

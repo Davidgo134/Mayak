@@ -476,15 +476,20 @@ class VideoNoteRecorder(
                 } catch (e: Exception) {
                     Log.w(tag, "switchCamera buffer resize: ${e.message}")
                 }
+                // Camera2 doc: после CameraDevice.close() камера гарантированно
+                // свободна только в момент onClosed() СВОЕГО StateCallback --
+                // подписаться на него постфактум для чужого device нельзя.
+                // Раньше мы сразу же звали openCamera() и любую ошибку типа
+                // "camera device already in use" тихо проглатывали в catch --
+                // превью просто зависало на последнем кадре без вообще какого-
+                // либо recovery. Теперь: пробуем открыть немедленно, а если
+                // система ответит ошибкой (камера ещё не освободилась) --
+                // ПОВТОРЯЕМ open с нарастающей задержкой вместо того, чтобы
+                // сдаваться. Так реальный релиз камеры всегда будет дождан.
+                camHandler?.post {
+                    openCameraForSwitchWithRetry(result, wasRecording, attempt = 0)
+                }
             }
-
-            // close() ne гарантирует немедленное освобождение камеры на
-            // уровне HAL — короткая задержка перед повторным open()
-            // устраняет гонку "camera device already in use", из-за которой
-            // раньше зависал предпросмотр.
-            camHandler?.postDelayed({
-                openCameraForSwitchWithRetry(result, wasRecording, attempt = 0)
-            }, 150)
         }
     }
 
@@ -496,12 +501,15 @@ class VideoNoteRecorder(
         openCameraForSwitch(
             onSuccess = { switching = false; result.success(it) },
             onError = { code, message ->
-                if (attempt < 3) {
+                if (attempt < 8) {
+                    val delayMs = 100L * (attempt + 1)
+                    Log.w(tag, "switch open failed ($code: $message), retry #$attempt in ${delayMs}ms")
                     camHandler?.postDelayed({
                         openCameraForSwitchWithRetry(result, wasRecording, attempt + 1)
-                    }, 200L * (attempt + 1))
+                    }, delayMs)
                 } else {
                     switching = false
+                    Log.e(tag, "switch open exhausted retries ($code: $message)")
                     result.error(code, message, null)
                 }
             },
@@ -509,80 +517,6 @@ class VideoNoteRecorder(
         )
     }
 
-    @Suppress("MissingPermission")
-    private fun openCameraForSwitch(
-        onSuccess: (Map<String, Any?>) -> Unit,
-        onError: (String, String?) -> Unit,
-        wasRecording: Boolean,
-    ) {
-        try {
-            manager().openCamera(
-                cameraId,
-                object : CameraDevice.StateCallback() {
-                    override fun onOpened(device: CameraDevice) {
-                        Log.i(tag, "camera reopened (switch) $cameraId")
-                        cameraDevice = device
-                        val camSurface = camInputSurface
-                        if (camSurface == null) {
-                            onError("SWITCH_FAILED", "no cam input surface")
-                            return
-                        }
-                        val surfaces = if (wasRecording && recorderSurface != null) {
-                            listOf(camSurface, recorderSurface!!)
-                        } else {
-                            listOf(camSurface)
-                        }
-                        try {
-                            createSession(surfaces) { s ->
-                                session = s
-                                val req = device.createCaptureRequest(
-                                    if (wasRecording) {
-                                        CameraDevice.TEMPLATE_RECORD
-                                    } else {
-                                        CameraDevice.TEMPLATE_PREVIEW
-                                    },
-                                )
-                                req.addTarget(camSurface)
-                                if (wasRecording && recorderSurface != null) {
-                                    req.addTarget(recorderSurface!!)
-                                }
-                                fpsRange?.let {
-                                    req.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, it)
-                                    Log.i(tag, "FPS_DIAG applied switch fpsRange=$it")
-                                }
-                                s.setRepeatingRequest(req.build(), null, camHandler)
-                                Log.i(tag, "switch session configured, recording=$wasRecording")
-                                onSuccess(
-                                    mapOf(
-                                        "isFront" to (lensFacing == CameraCharacteristics.LENS_FACING_FRONT),
-                                    ),
-                                )
-                            }
-                        } catch (e: Exception) {
-                            Log.e(tag, "switch session failed", e)
-                            onError("SWITCH_FAILED", e.message)
-                        }
-                    }
-
-                    override fun onDisconnected(device: CameraDevice) {
-                        device.close(); cameraDevice = null
-                        onError("CAMERA_DISCONNECTED", "camera disconnected during switch")
-                    }
-
-                    override fun onError(device: CameraDevice, error: Int) {
-                        device.close(); cameraDevice = null
-                        onError("CAMERA_ERROR", "code $error")
-                    }
-                },
-                camHandler,
-            )
-        } catch (e: Exception) {
-            Log.e(tag, "openCameraForSwitch failed", e)
-            onError("SWITCH_FAILED", e.message)
-        }
-    }
-
-    @Suppress("DEPRECATION")
     private fun createSession(
         surfaces: List<Surface>,
         onReady: (CameraCaptureSession) -> Unit,
