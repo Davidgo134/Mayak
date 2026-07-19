@@ -714,7 +714,7 @@ class AppDatabase {
     bool includeHidden = false,
   }) async {
     final db = await _instance;
-    return db.query(
+    final rows = await db.query(
       'chats_cache',
       where: includeHidden
           ? 'account_id = ? AND in_list IN (1, 2)'
@@ -722,6 +722,19 @@ class AppDatabase {
       whereArgs: [accountId],
       orderBy: 'last_event_time DESC',
     );
+    final hiddenTotal = await db.query(
+      'chats_cache',
+      columns: ['id', 'in_list', 'title'],
+      where: 'account_id = ? AND in_list = 2',
+      whereArgs: [accountId],
+    );
+    logger.i(
+      'HIDDEN_CHATS_DIAG loadChats includeHidden=$includeHidden '
+      'returnedRows=${rows.length} '
+      'hiddenInDb=${hiddenTotal.length} '
+      'hiddenIds=${hiddenTotal.map((r) => r['id']).toList()}',
+    );
+    return rows;
   }
 
   static Future<int> sumUnread(

@@ -33,6 +33,7 @@ import '../../widgets/connection_status.dart';
 import '../../../backend/api.dart';
 import '../../../core/protocol/opcode_map.dart';
 import '../../../core/protocol/packet.dart';
+import '../../../core/utils/logger.dart';
 import '../../../core/utils/haptics.dart';
 import '../../../core/config/app_animations.dart';
 import '../../../core/config/app_frost.dart';
@@ -748,10 +749,17 @@ class _ChatListScreenState extends State<ChatListScreen>
     }
 
     try {
+      final effectiveIncludeHidden =
+          widget.archiveMode || KometSettings.showHiddenChats.value;
       final loadedChats = await chats.getChats(
         p.id,
-        includeHidden:
-            widget.archiveMode || KometSettings.showHiddenChats.value,
+        includeHidden: effectiveIncludeHidden,
+      );
+      logger.i(
+        'HIDDEN_CHATS_DIAG archiveMode=${widget.archiveMode} '
+        'showHiddenChatsSetting=${KometSettings.showHiddenChats.value} '
+        'effectiveIncludeHidden=$effectiveIncludeHidden '
+        'loadedChatsCount=${loadedChats.length}',
       );
       final archivedIds = ArchivedChatsStore.instance.archivedChatIds(p.id);
       var archivedCount = 0;

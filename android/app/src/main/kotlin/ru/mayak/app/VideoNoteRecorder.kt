@@ -82,6 +82,8 @@ class VideoNoteRecorder(
     private fun manager() =
         context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
 
+    private var fpsRange: android.util.Range<Int>? = null
+
     private fun selectCamera(facing: Int): Boolean {
         val mgr = manager()
         for (id in mgr.cameraIdList) {
@@ -95,6 +97,17 @@ class VideoNoteRecorder(
                     CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP,
                 )
                 camSize = pickCamSize(map)
+
+                val ranges = ch.get(
+                    CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES,
+                )
+                Log.i(
+                    tag,
+                    "FPS_DIAG camera=$id facing=$facing available_fps_ranges=" +
+                        (ranges?.joinToString { "[${it.lower}-${it.upper}]" } ?: "none"),
+                )
+                fpsRange = ranges?.maxByOrNull { it.upper }
+                Log.i(tag, "FPS_DIAG selected fpsRange=$fpsRange")
                 return true
             }
         }
@@ -183,8 +196,31 @@ class VideoNoteRecorder(
     }
 
     private var frameCount = 0
+    private var lastFrameNs = 0L
+    private var fpsWindowStartNs = 0L
+    private var fpsWindowFrames = 0
 
     private fun onFrame() {
+        val nowNs = System.nanoTime()
+        if (lastFrameNs != 0L) {
+            val deltaMs = (nowNs - lastFrameNs) / 1_000_000.0
+            fpsWindowFrames++
+            if (fpsWindowStartNs == 0L) fpsWindowStartNs = nowNs
+            val windowMs = (nowNs - fpsWindowStartNs) / 1_000_000.0
+            if (windowMs >= 1000.0) {
+                val realFps = fpsWindowFrames * 1000.0 / windowMs
+                Log.i(
+                    tag,
+                    "FPS_DIAG real_fps=${"%.1f".format(realFps)} " +
+                        "last_frame_delta_ms=${"%.1f".format(deltaMs)} " +
+                        "target_range=$fpsRange cam_size=$camSize",
+                )
+                fpsWindowFrames = 0
+                fpsWindowStartNs = nowNs
+            }
+        }
+        lastFrameNs = nowNs
+
         val st = camTexture ?: return
         val prog = program ?: return
         val w = previewWindow ?: return
@@ -252,6 +288,10 @@ class VideoNoteRecorder(
                 session = s
                 val req = device.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
                 req.addTarget(camSurface)
+                fpsRange?.let {
+                    req.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, it)
+                    Log.i(tag, "FPS_DIAG applied preview fpsRange=$it")
+                }
                 s.setRepeatingRequest(req.build(), null, camHandler)
                 Log.i(tag, "preview session configured")
                 result.success(mapOf("textureId" to textureId, "size" to edge))
@@ -461,6 +501,10 @@ class VideoNoteRecorder(
                                 req.addTarget(camSurface)
                                 if (wasRecording && recorderSurface != null) {
                                     req.addTarget(recorderSurface!!)
+                                }
+                                fpsRange?.let {
+                                    req.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, it)
+                                    Log.i(tag, "FPS_DIAG applied switch fpsRange=$it")
                                 }
                                 s.setRepeatingRequest(req.build(), null, camHandler)
                                 Log.i(tag, "switch session configured, recording=$wasRecording")

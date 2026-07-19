@@ -32,6 +32,9 @@ class VideoNoteController {
   final ValueNotifier<int> _elapsedMs = ValueNotifier(0);
   final ValueNotifier<double> _cancelDrag = ValueNotifier(0);
   final ValueNotifier<bool> _isFrontCamera = ValueNotifier(true);
+  final ValueNotifier<bool> _locked = ValueNotifier(false);
+  final ValueNotifier<double> _lockDrag = ValueNotifier(0);
+  static const double _lockThreshold = 90;
   final Stopwatch _stopwatch = Stopwatch();
   Timer? _timer;
   bool _cancelled = false;
@@ -42,6 +45,8 @@ class VideoNoteController {
   ValueListenable<bool> get camReady => _camReady;
   ValueListenable<bool> get isRecording => _isRecording;
   ValueListenable<bool> get isFrontCamera => _isFrontCamera;
+  ValueListenable<bool> get locked => _locked;
+  ValueListenable<double> get lockDrag => _lockDrag;
 
   Future<void> switchCamera() async {
     if (_rec.textureId == null) return;
@@ -117,6 +122,8 @@ class VideoNoteController {
         ..start();
       _elapsedMs.value = 0;
       _cancelDrag.value = 0;
+      _locked.value = false;
+      _lockDrag.value = 0;
       _cancelled = false;
       _isRecording.value = true;
       FocusManager.instance.primaryFocus?.unfocus();
@@ -136,7 +143,18 @@ class VideoNoteController {
   }
 
   void handleDrag(Offset offsetFromOrigin) {
-    if (!_isRecording.value) return;
+    if (!_isRecording.value || _locked.value) return;
+
+    final lock = (-offsetFromOrigin.dy / _lockThreshold).clamp(0.0, 1.0);
+    _lockDrag.value = lock;
+    if (lock >= 1.0) {
+      _locked.value = true;
+      _lockDrag.value = 0;
+      _cancelDrag.value = 0;
+      Haptics.send();
+      return;
+    }
+
     final drag = (-offsetFromOrigin.dx / VoiceRecordController.cancelThreshold)
         .clamp(0.0, 1.0);
     _cancelDrag.value = drag;
@@ -147,7 +165,10 @@ class VideoNoteController {
     }
   }
 
-  void handleEnd() => stop(cancel: false);
+  void handleEnd() {
+    if (_locked.value) return;
+    stop(cancel: false);
+  }
 
   Future<void> stop({required bool cancel}) async {
     if (!_isRecording.value) {
@@ -160,6 +181,8 @@ class VideoNoteController {
     final elapsed = _stopwatch.elapsedMilliseconds;
     _isRecording.value = false;
     _cancelDrag.value = 0;
+    _locked.value = false;
+    _lockDrag.value = 0;
     _hideOverlay();
 
     final path = await _rec.stop();
@@ -241,15 +264,49 @@ class VideoNoteController {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  ValueListenableBuilder<double>(
-                    valueListenable: _cancelDrag,
-                    builder: (context, drag, _) => Opacity(
-                      opacity: (0.5 + drag * 0.5).clamp(0.0, 1.0),
-                      child: const Text(
-                        '‹ влево — отмена',
-                        style: TextStyle(color: Colors.white70, fontSize: 13),
-                      ),
-                    ),
+                  ValueListenableBuilder<bool>(
+                    valueListenable: _locked,
+                    builder: (context, locked, _) {
+                      if (locked) {
+                        return IgnorePointer(
+                          ignoring: false,
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () => stop(cancel: false),
+                              borderRadius: BorderRadius.circular(20),
+                              child: const Padding(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                child: Text(
+                                  '⏹ нажмите, чтобы остановить',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+                      return ValueListenableBuilder<double>(
+                        valueListenable: _cancelDrag,
+                        builder: (context, drag, _) => Opacity(
+                          opacity: (0.5 + drag * 0.5).clamp(0.0, 1.0),
+                          child: const Text(
+                            '‹ влево — отмена   •   ↑ вверх — не держать',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),
@@ -278,5 +335,7 @@ class VideoNoteController {
     _elapsedMs.dispose();
     _cancelDrag.dispose();
     _isFrontCamera.dispose();
+    _locked.dispose();
+    _lockDrag.dispose();
   }
 }

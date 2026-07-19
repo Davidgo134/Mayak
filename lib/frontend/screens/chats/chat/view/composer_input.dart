@@ -309,13 +309,19 @@ class ComposerInputBar extends StatelessWidget {
                           builder: (context, hasText, _) =>
                               ValueListenableBuilder<bool>(
                                 valueListenable: voiceRec.locked,
-                                builder: (context, locked, _) =>
+                                builder: (context, voiceLocked, _) =>
                                     ValueListenableBuilder<bool>(
-                                      valueListenable: voiceRec.isRecording,
-                                      builder: (context, recording, _) =>
+                                      valueListenable: note.locked,
+                                      builder: (context, videoLocked, _) =>
                                           ValueListenableBuilder<bool>(
-                                            valueListenable: note.videoNoteMode,
-                                            builder: (context, videoMode, _) {
+                                            valueListenable: voiceRec.isRecording,
+                                            builder: (context, recording, _) =>
+                                                ValueListenableBuilder<bool>(
+                                                  valueListenable:
+                                                      note.videoNoteMode,
+                                                  builder: (context, videoMode, _) {
+                                              final locked =
+                                                  voiceLocked || videoLocked;
                                               final sendMode =
                                                   hasText || locked;
                                               final pill = _actionSurface(
@@ -330,7 +336,11 @@ class ComposerInputBar extends StatelessWidget {
                                                     : cs.surfaceContainerHighest,
                                                 onTap: hasText
                                                     ? onSendText
-                                                    : locked
+                                                    : videoLocked
+                                                    ? () => note.stop(
+                                                        cancel: false,
+                                                      )
+                                                    : voiceLocked
                                                     ? () => voiceRec.stop(
                                                         cancel: false,
                                                       )
@@ -398,7 +408,8 @@ class ComposerInputBar extends StatelessWidget {
                                                                 .handleEnd(),
                                                 child: visual,
                                               );
-                                            },
+                                                  },
+                                                ),
                                           ),
                                     ),
                               ),
