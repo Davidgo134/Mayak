@@ -70,10 +70,28 @@ class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
     return data.codeUnits;
   }
 
+  StreamSubscription<TranscriptionResult>? _transcriptionSub;
+
   @override
   void initState() {
     super.initState();
     _transcriptionText = widget.preloadedText;
+    _transcriptionSub = TranscriptionCache.updates.listen((result) {
+      if (result.messageId != widget.messageId) return;
+      if (!mounted) return;
+      setState(() {
+        _transcriptionLoading = false;
+        if (result.status == 1) {
+          _transcriptionText = (result.text == null || result.text!.isEmpty)
+              ? 'не удалось распознать текст'
+              : result.text;
+          _transcriptionVisible = true;
+        } else if (result.status != 0) {
+          _transcriptionText = 'ошибка транскрибации';
+          _transcriptionVisible = true;
+        }
+      });
+    });
   }
 
   @override
@@ -82,6 +100,7 @@ class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
     _player?.state.removeListener(_onPlayerState);
     _player?.dispose();
     _progress.dispose();
+    _transcriptionSub?.cancel();
     super.dispose();
   }
 
@@ -429,6 +448,9 @@ class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
           _transcriptionVisible = true;
         } else if (result.status == 0) {
           _transcriptionText = 'транскрибация...';
+          _transcriptionVisible = true;
+        } else {
+          _transcriptionText = 'ошибка транскрибации';
           _transcriptionVisible = true;
         }
       });

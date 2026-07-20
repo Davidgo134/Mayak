@@ -17,7 +17,8 @@ import '../api.dart';
 import 'chat_parsing.dart';
 import 'chat_preview.dart';
 import 'folders.dart';
-import 'messages.dart' show ContactCache, CachedMessage;
+import 'messages.dart'
+    show ContactCache, CachedMessage, TranscriptionCache, TranscriptionResult;
 
 Map<int, int> parseParticipants(dynamic raw) {
   try {
@@ -584,7 +585,32 @@ class ChatsModule {
         await _handleNotifMsgDelete(packet);
       case Opcode.notifPresence:
         _handlePresence(packet);
+      case Opcode.transcriptionResult:
+        _handleTranscriptionResult(packet);
     }
+  }
+
+  void _handleTranscriptionResult(Packet packet) {
+    final payload = packet.payload;
+    if (payload is! Map) return;
+    final messageId = payload['messageId']?.toString();
+    if (messageId == null || messageId.isEmpty) return;
+    final status = payload['transcriptionStatus'] as int? ?? -1;
+    String? text;
+    if (status == 1) {
+      final raw = payload['transcription'] as String? ?? '';
+      text = raw.isEmpty ? 'не удалось распознать текст' : raw;
+    }
+    TranscriptionCache.applyPushResult(
+      messageId,
+      TranscriptionResult(
+        status: status,
+        text: text,
+        messageId: messageId,
+        chatId: payload['chatId'] as int?,
+        mediaId: payload['mediaId'] as int?,
+      ),
+    );
   }
 
   void _handlePresence(Packet packet) {

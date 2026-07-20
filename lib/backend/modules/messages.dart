@@ -127,6 +127,11 @@ class TranscriptionResult {
 class TranscriptionCache {
   static final Map<String, TranscriptionResult> _cache = {};
 
+  static final StreamController<TranscriptionResult> _updates =
+      StreamController<TranscriptionResult>.broadcast();
+
+  static Stream<TranscriptionResult> get updates => _updates.stream;
+
   static void put(String messageId, TranscriptionResult result) {
     _cache[messageId] = result;
   }
@@ -134,6 +139,11 @@ class TranscriptionCache {
   static TranscriptionResult? get(String messageId) => _cache[messageId];
 
   static bool has(String messageId) => _cache.containsKey(messageId);
+
+  static void applyPushResult(String messageId, TranscriptionResult result) {
+    _cache[messageId] = result;
+    _updates.add(result);
+  }
 
   static void clear() => _cache.clear();
 }
@@ -854,6 +864,32 @@ class MessagesModule {
     return _sendAndExtractMessageId(payload, 'Ошибка пересылки');
   }
 
+  static List<Map<String, dynamic>> _normalizedForwardAttaches(
+    List<MessageAttachment>? attachments,
+    List? fallback,
+  ) {
+    if (attachments != null && attachments.isNotEmpty) {
+      final normalized = attachments
+          .where((a) => a.type != AttachmentType.forward)
+          .map((a) => a.toMap())
+          .toList();
+      if (normalized.isNotEmpty) return normalized;
+
+      final forwarded = attachments.whereType<ForwardedMessageAttachment>().toList();
+      if (forwarded.length == 1) {
+        final nested = forwarded.first.originalAttachments
+            ?.map((a) => a.toMap())
+            .toList();
+        if (nested != null && nested.isNotEmpty) return nested;
+      }
+    }
+    return fallback
+            ?.whereType<Map>()
+            .map((a) => Map<String, dynamic>.from(a))
+            .toList() ??
+        const <Map<String, dynamic>>[];
+  }
+
   static CachedMessage buildForwardMessage({
     required int myId,
     required int targetChatId,
@@ -865,18 +901,31 @@ class MessagesModule {
   }) {
     final srcPayload = source.payload;
     final srcLink = srcPayload?['link'];
+    final normalizedSourceAttaches = _normalizedForwardAttaches(
+      source.attachments,
+      srcPayload?['attaches'] as List?,
+    );
     Map<String, dynamic> originalMsg;
     if (srcLink is Map &&
         srcLink['type'] == 'FORWARD' &&
         srcLink['message'] is Map) {
       originalMsg = Map<String, dynamic>.from(srcLink['message'] as Map);
+      final nestedAttaches = _normalizedForwardAttaches(
+        source.attachments,
+        originalMsg['attaches'] as List?,
+      );
+      originalMsg['attaches'] = nestedAttaches;
+      originalMsg['text'] = source.text ?? originalMsg['text'];
+      originalMsg['time'] ??= source.time;
+      originalMsg['sender'] ??= source.senderId;
+      originalMsg['id'] ??= int.tryParse(source.id) ?? source.id;
     } else {
       originalMsg = {
         'id': int.tryParse(source.id) ?? source.id,
         'sender': source.senderId,
         'time': source.time,
         'text': source.text,
-        'attaches': (srcPayload?['attaches'] as List?) ?? const [],
+        'attaches': normalizedSourceAttaches,
       };
     }
     final payload = <String, dynamic>{
