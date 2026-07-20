@@ -307,19 +307,6 @@ class VideoNoteController {
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Material(
-            color: Colors.transparent,
-            shape: const CircleBorder(),
-            child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: () => switchCamera(),
-              child: const Padding(
-                padding: EdgeInsets.all(10),
-                child: Icon(Icons.flip_camera_ios_outlined, color: Colors.white, size: 24),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
           Container(
             width: 8,
             height: 8,

@@ -12,7 +12,6 @@ import 'token_login_screen.dart';
 import 'select_country_screen.dart';
 import 'proxy_settings_sheet.dart';
 import 'server_settings_sheet.dart';
-import '../profile/spoof_screen.dart';
 import '../profile/debug_menu_screen.dart';
 import '../digital_id/digital_id_web_screen.dart';
 import '../../widgets/custom_notification.dart';
@@ -584,26 +583,6 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                ListTile(
-                  leading: Icon(Symbols.security, color: cs.onSurface),
-                  title: Text(
-                    l10n.loginSpoofRedacted,
-                    style: TextStyle(
-                      color: cs.onSurface,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  onTap: () {
-                    Navigator.pop(sheetContext);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const SpoofScreen(),
-                      ),
-                    );
-                  },
-                ),
                 ListTile(
                   leading: Icon(Symbols.vpn_lock, color: cs.onSurface),
                   title: Text(

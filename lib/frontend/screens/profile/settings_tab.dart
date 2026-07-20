@@ -43,7 +43,6 @@ import 'info_screen.dart';
 import 'komet_settings_screen.dart';
 import 'notifications_screen.dart';
 import 'security_screen.dart';
-import 'spoof_screen.dart';
 
 class SettingsTab extends StatefulWidget {
   const SettingsTab({super.key});
@@ -482,18 +481,6 @@ class _SettingsTabState extends State<SettingsTab> {
                                   child: const ProxySettingsSheet(),
                                 );
                               },
-                            );
-                          },
-                        ),
-                        _SettingsItem(
-                          icon: Symbols.shield_lock,
-                          label: AppLocalizations.of(context)!.profileMenuSpoof,
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const SpoofScreen(),
-                              ),
                             );
                           },
                         ),
