@@ -1,22 +1,23 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import 'package:video_player/video_player.dart';
 import 'package:komet/main.dart';
 
+import '../../../../backend/modules/messages.dart';
 import '../../../../core/utils/haptics.dart';
-import '../../../../core/utils/logger.dart';
-import '../../../../core/utils/media_cache.dart';
 import '../../../../models/attachment.dart';
 import '../../small_spinner.dart';
+import '../../video_note_viewer.dart';
 
 class VideoNoteBubble extends StatefulWidget {
   final VideoAttachment attachment;
   final String messageId;
   final int chatId;
   final ColorScheme cs;
+  final Color? textColor;
 
   const VideoNoteBubble({
     super.key,
@@ -24,27 +25,54 @@ class VideoNoteBubble extends StatefulWidget {
     required this.messageId,
     required this.chatId,
     required this.cs,
+    this.textColor,
   });
 
   @override
   State<VideoNoteBubble> createState() => _VideoNoteBubbleState();
 }
 
-class _VideoNoteBubbleState extends State<VideoNoteBubble> {
+class _VideoNoteBubbleState extends State<VideoNoteBubble>
+    with SingleTickerProviderStateMixin {
   static const double _size = 210;
-  VideoPlayerController? _controller;
-  bool _loading = false;
-  bool _error = false;
+  bool _opening = false;
+
+  bool _transcriptionVisible = false;
+  String? _transcriptionText;
+  bool _transcriptionLoading = false;
+  StreamSubscription<TranscriptionResult>? _transcriptionSub;
+  late final AnimationController _transcriptionIconAnim = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _transcriptionSub = TranscriptionCache.updates.listen((result) {
+      if (result.messageId != widget.messageId) return;
+      if (!mounted) return;
+      setState(() {
+        _transcriptionLoading = false;
+        _transcriptionIconAnim.stop();
+        if (result.status == 1) {
+          _transcriptionText = (result.text == null || result.text!.isEmpty)
+              ? 'не удалось распознать текст'
+              : result.text;
+          _transcriptionVisible = true;
+        } else if (result.status != 0) {
+          _transcriptionText = 'ошибка транскрибации';
+          _transcriptionVisible = true;
+        }
+      });
+    });
+  }
 
   @override
   void dispose() {
-    _controller?.removeListener(_onTick);
-    _controller?.dispose();
+    _transcriptionSub?.cancel();
+    _transcriptionIconAnim.dispose();
     super.dispose();
-  }
-
-  void _onTick() {
-    if (mounted) setState(() {});
   }
 
   static Uint8List? _previewBytes(String? data) {
@@ -59,141 +87,220 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble> {
     }
   }
 
-  Future<void> _toggle() async {
-    final existing = _controller;
-    if (existing != null) {
-      setState(
-        () => existing.value.isPlaying ? existing.pause() : existing.play(),
-      );
-      return;
-    }
-    if (_loading) return;
-
-    final a = widget.attachment;
-    final videoId = a.videoId;
-    final token = a.videoToken;
-    if (videoId == null || token == null) {
-      setState(() => _error = true);
-      return;
-    }
-
-    setState(() => _loading = true);
-    Haptics.tap();
+  Future<void> _openViewer() async {
+    if (_opening) return;
+    setState(() => _opening = true);
     try {
-      final cacheName = 'videonote_$videoId.mp4';
-      var file = await MediaCache.existing(cacheName);
-      if (file == null) {
-        final url = await messagesModule.getVideoUrl(
-          messageId: widget.messageId,
-          chatId: widget.chatId,
-          token: token,
-          videoId: videoId,
-        );
-        if (url == null) throw Exception('no_url');
-        file = await MediaCache.getOrDownload(cacheName, url);
-        if (file == null) throw Exception('download');
-      }
+      await openVideoNoteViewer(
+        context,
+        attachment: widget.attachment,
+        messageId: widget.messageId,
+        chatId: widget.chatId,
+      );
+    } finally {
+      if (mounted) setState(() => _opening = false);
+    }
+  }
+
+  Future<void> _requestTranscription() async {
+    final videoId = widget.attachment.videoId;
+    if (videoId == null) return;
+
+    if (_transcriptionVisible && _transcriptionText != null) {
+      setState(() => _transcriptionVisible = false);
+      return;
+    }
+
+    if (TranscriptionCache.has(widget.messageId)) {
+      final cached = TranscriptionCache.get(widget.messageId)!;
+      setState(() {
+        _transcriptionText = cached.text ?? 'не удалось распознать текст';
+        _transcriptionVisible = true;
+      });
+      return;
+    }
+
+    Haptics.tap();
+    setState(() => _transcriptionLoading = true);
+    _transcriptionIconAnim.repeat();
+
+    try {
+      final result = await messagesModule.requestTranscription(
+        widget.chatId,
+        int.tryParse(widget.messageId) ?? 0,
+        videoId,
+      );
+
+      TranscriptionCache.put(widget.messageId, result);
+
       if (!mounted) return;
-      final c = VideoPlayerController.file(file);
-      _controller = c;
-      await c.initialize();
-      if (!mounted) {
-        c.dispose();
-        return;
-      }
-      await c.setLooping(true);
-      c.addListener(_onTick);
-      c.play();
-      setState(() => _loading = false);
+      setState(() {
+        _transcriptionLoading = false;
+        _transcriptionIconAnim.stop();
+        if (result.status == 1) {
+          _transcriptionText = (result.text == null || result.text!.isEmpty)
+              ? 'не удалось распознать текст'
+              : result.text;
+          _transcriptionVisible = true;
+        } else if (result.status == 0) {
+          _transcriptionText = 'транскрибация...';
+          _transcriptionVisible = true;
+        } else {
+          _transcriptionText = 'ошибка транскрибации';
+          _transcriptionVisible = true;
+        }
+      });
     } catch (e) {
-      logger.w('VideoNoteBubble._toggle: $e');
-      if (mounted) {
-        setState(() {
-          _loading = false;
-          _error = true;
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _transcriptionLoading = false;
+        _transcriptionIconAnim.stop();
+        _transcriptionText = 'ошибка транскрибации';
+        _transcriptionVisible = true;
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final a = widget.attachment;
-    final c = _controller;
-    final ready = c != null && c.value.isInitialized;
-    final playing = ready && c.value.isPlaying;
     final preview = _previewBytes(a.previewData);
+    final textColor = widget.textColor ?? widget.cs.onSurface;
 
-    double progress = 0;
-    if (ready && c.value.duration.inMilliseconds > 0) {
-      progress =
-          c.value.position.inMilliseconds / c.value.duration.inMilliseconds;
-    }
-
-    return GestureDetector(
-      onTap: _toggle,
-      child: SizedBox(
-        width: _size,
-        height: _size,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            ClipOval(
-              child: SizedBox(
-                width: _size,
-                height: _size,
-                child: ready
-                    ? FittedBox(
-                        fit: BoxFit.cover,
-                        clipBehavior: Clip.hardEdge,
-                        child: SizedBox(
-                          width: c.value.size.width,
-                          height: c.value.size.height,
-                          child: VideoPlayer(c),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: _size,
+          height: _size,
+          child: Stack(
+            alignment: Alignment.center,
+            clipBehavior: Clip.none,
+            children: [
+              GestureDetector(
+                onTap: _openViewer,
+                child: ClipOval(
+                  child: SizedBox(
+                    width: _size,
+                    height: _size,
+                    child: preview != null
+                        ? Image.memory(
+                            preview,
+                            fit: BoxFit.cover,
+                            gaplessPlayback: true,
+                          )
+                        : Container(color: widget.cs.surfaceContainerHighest),
+                  ),
+                ),
+              ),
+              IgnorePointer(
+                child: Container(
+                  width: 52,
+                  height: 52,
+                  decoration: const BoxDecoration(
+                    color: Colors.black45,
+                    shape: BoxShape.circle,
+                  ),
+                  child: _opening
+                      ? const Padding(
+                          padding: EdgeInsets.all(14),
+                          child: SmallSpinner(size: 36, color: Colors.white),
+                        )
+                      : const Icon(
+                          Symbols.play_arrow,
+                          color: Colors.white,
+                          size: 30,
                         ),
-                      )
-                    : preview != null
-                    ? Image.memory(
-                        preview,
-                        fit: BoxFit.cover,
-                        gaplessPlayback: true,
-                      )
-                    : Container(color: widget.cs.surfaceContainerHighest),
-              ),
-            ),
-            if (ready)
-              SizedBox(
-                width: _size - 2,
-                height: _size - 2,
-                child: CircularProgressIndicator(
-                  value: progress.clamp(0.0, 1.0),
-                  strokeWidth: 3,
-                  color: widget.cs.primary,
-                  backgroundColor: Colors.white24,
                 ),
               ),
-            if (!playing)
-              Container(
-                width: 52,
-                height: 52,
-                decoration: const BoxDecoration(
-                  color: Colors.black45,
-                  shape: BoxShape.circle,
-                ),
-                child: _loading
-                    ? const Padding(
-                        padding: EdgeInsets.all(14),
-                        child: SmallSpinner(size: 36, color: Colors.white),
-                      )
-                    : Icon(
-                        _error ? Symbols.error : Symbols.play_arrow,
-                        color: Colors.white,
-                        size: 30,
+              if (widget.attachment.videoId != null)
+                Positioned(
+                  right: 4,
+                  bottom: 4,
+                  child: GestureDetector(
+                    onTap: _requestTranscription,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeOut,
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: _transcriptionVisible
+                            ? widget.cs.primary
+                            : Colors.black54,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.25),
+                          width: 1,
+                        ),
                       ),
-              ),
-          ],
+                      child: Center(
+                        child: _transcriptionLoading
+                            ? RotationTransition(
+                                turns: _transcriptionIconAnim,
+                                child: const Icon(
+                                  Symbols.graphic_eq,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
+                              )
+                            : Text(
+                                'Т',
+                                style: TextStyle(
+                                  color: _transcriptionVisible
+                                      ? widget.cs.onPrimary
+                                      : Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
-      ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.topLeft,
+          child: _transcriptionVisible
+              ? Container(
+                  key: const ValueKey('transcription'),
+                  margin: const EdgeInsets.only(top: 8),
+                  width: _size,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: widget.cs.surfaceContainerHighest.withValues(
+                      alpha: 0.6,
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    child: Text(
+                      _transcriptionText ?? '',
+                      key: ValueKey(_transcriptionText),
+                      style: TextStyle(
+                        color: textColor.withValues(alpha: 0.85),
+                        fontSize: 13,
+                        height: 1.35,
+                      ),
+                    ),
+                  ),
+                )
+              : const SizedBox(
+                  key: ValueKey('no-transcription'),
+                  width: _size,
+                  height: 0,
+                ),
+        ),
+      ],
     );
   }
 }
