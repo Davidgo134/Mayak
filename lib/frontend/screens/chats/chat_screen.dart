@@ -3777,35 +3777,6 @@ class _ChatScreenState extends State<ChatScreen>
     );
   }
 
-  void _openForwardOrigin(
-    int originChatId,
-    String? messageId,
-    int? time,
-    String? senderName,
-    String? senderAvatar,
-  ) {
-    if (messageId == null) {
-      showCustomNotification(context, 'Исходное сообщение недоступно');
-      return;
-    }
-    if (originChatId == widget.chatId) {
-      _jumpToMessage(messageId);
-      return;
-    }
-    Haptics.tap();
-    pushSwipeable(
-      context,
-      (_) => ChatScreen(
-        chatId: originChatId,
-        name: senderName ?? '',
-        imageUrl: senderAvatar ?? '',
-        chatType: 'CHAT',
-        initialMessageId: messageId,
-        initialMessageTime: time ?? 0,
-      ),
-    );
-  }
-
   void _jumpToMessage(String messageId, {String? fromId}) {
     final index = _messages.indexWhere((m) => m.id == messageId);
     if (index == -1) {
@@ -4737,7 +4708,6 @@ class _ChatScreenState extends State<ChatScreen>
                                 uploadProgress: _photoProgressFor(message),
                                 onReplyTap: (id) =>
                                     _jumpToMessage(id, fromId: message.id),
-                                onForwardOriginTap: _openForwardOrigin,
                                 onAvatarTap: _openSenderProfile,
                                 onStickerTap: _openStickerPack,
                                 onReactionTap: message.isControl

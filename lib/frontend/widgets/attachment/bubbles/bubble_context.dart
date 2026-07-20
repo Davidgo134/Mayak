@@ -69,7 +69,6 @@ class BubbleContext {
   final ValueListenable<int>? otherReadTime;
   final ValueListenable<List<double>>? uploadProgress;
   final void Function(StickerAttachment sticker)? onStickerTap;
-  final void Function(int chatId, String? messageId, int? time, String? senderName, String? senderAvatar)? onForwardOriginTap;
 
   BubbleContext({
     required this.context,
@@ -89,7 +88,6 @@ class BubbleContext {
     this.otherReadTime,
     this.uploadProgress,
     this.onStickerTap,
-    this.onForwardOriginTap,
     this.reactionInfo,
   }) : dim = text.withValues(alpha: 0.7);
 
