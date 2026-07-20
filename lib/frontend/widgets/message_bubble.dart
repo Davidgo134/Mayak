@@ -133,6 +133,7 @@ class MessageBubble extends StatelessWidget {
   final ValueListenable<Map<String, dynamic>?>? reactionsListenable;
   final ValueListenable<List<double>>? uploadProgress;
   final void Function(String messageId)? onReplyTap;
+  final void Function(int chatId, String? messageId, int? time, String? senderName, String? senderAvatar)? onForwardOriginTap;
   final void Function(int senderId)? onAvatarTap;
   final void Function(StickerAttachment sticker)? onStickerTap;
   final void Function(String emoji)? onReactionTap;
@@ -156,6 +157,7 @@ class MessageBubble extends StatelessWidget {
     this.reactionsListenable,
     this.uploadProgress,
     this.onReplyTap,
+    this.onForwardOriginTap,
     this.onAvatarTap,
     this.onStickerTap,
     this.onReactionTap,
@@ -518,6 +520,7 @@ class MessageBubble extends StatelessWidget {
       otherReadTime: otherReadTime,
       uploadProgress: uploadProgress,
       onStickerTap: onStickerTap,
+      onForwardOriginTap: onForwardOriginTap,
       reactionInfo: _resolveReactionInfo(),
     );
 

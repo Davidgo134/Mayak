@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -9,6 +12,7 @@ import 'contact_bubble.dart';
 import 'file_bubble.dart';
 import 'photo_bubble.dart';
 import 'sticker_bubble.dart';
+import 'video_bubble.dart';
 
 Widget _forwardedHeader(
   BubbleContext ctx,
@@ -66,6 +70,95 @@ Widget _forwardedHeader(
   );
 }
 
+/// Wraps forwarded content so tapping it navigates to the original message
+/// in the chat it was forwarded from, instead of (or in addition to) any
+/// action the inner content widget already performs.
+Widget _wrapForwardOriginTap(
+  BubbleContext ctx,
+  ForwardedMessageAttachment forwarded,
+  Widget child,
+) {
+  final onTap = ctx.onForwardOriginTap;
+  final originChatId = forwarded.originalChatId;
+  if (onTap == null || originChatId == null) return child;
+  return GestureDetector(
+    behavior: HitTestBehavior.opaque,
+    onTap: () => onTap(
+      originChatId,
+      forwarded.originalMessageId,
+      forwarded.originalTime,
+      forwarded.originalSenderName,
+      forwarded.originalSenderAvatar,
+    ),
+    child: child,
+  );
+}
+
+/// Static (non-interactive) preview of a forwarded video note.
+/// Unlike [VideoNoteBubble], this never plays inline — tapping it always
+/// jumps to the original circle message, matching the request to open the
+/// source chat/message rather than starting inline playback here.
+class _ForwardedVideoNotePreview extends StatelessWidget {
+  static const double _size = 210;
+
+  final VideoAttachment video;
+  final ColorScheme cs;
+
+  const _ForwardedVideoNotePreview({required this.video, required this.cs});
+
+  static Uint8List? _previewBytes(String? data) {
+    if (data == null) return null;
+    const marker = 'base64,';
+    final idx = data.indexOf(marker);
+    if (idx < 0) return null;
+    try {
+      return base64Decode(data.substring(idx + marker.length));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final preview = _previewBytes(video.previewData);
+    return SizedBox(
+      width: _size,
+      height: _size,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          ClipOval(
+            child: SizedBox(
+              width: _size,
+              height: _size,
+              child: preview != null
+                  ? Image.memory(
+                      preview,
+                      fit: BoxFit.cover,
+                      gaplessPlayback: true,
+                    )
+                  : Container(color: cs.surfaceContainerHighest),
+            ),
+          ),
+          Container(
+            width: 52,
+            height: 52,
+            decoration: const BoxDecoration(
+              color: Colors.black45,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Symbols.play_arrow,
+              color: Colors.white,
+              size: 30,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class ForwardedPhotoBubble extends StatelessWidget {
   final BubbleContext ctx;
   final ForwardedMessageAttachment forwarded;
@@ -83,24 +176,28 @@ class ForwardedPhotoBubble extends StatelessWidget {
     final message = ctx.message;
     final hasCaption = message.text != null && message.text!.isNotEmpty;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _forwardedHeader(ctx, forwarded),
-        const SizedBox(height: 4),
-        if (hasCaption) ...[
-          Padding(
-            padding: const EdgeInsets.only(left: 8),
-            child: Text(
-              message.text ?? '',
-              style: TextStyle(color: ctx.text, fontSize: 16, height: 1.3),
+    return _wrapForwardOriginTap(
+      ctx,
+      forwarded,
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _forwardedHeader(ctx, forwarded),
+          const SizedBox(height: 4),
+          if (hasCaption) ...[
+            Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: Text(
+                message.text ?? '',
+                style: TextStyle(color: ctx.text, fontSize: 16, height: 1.3),
+              ),
             ),
-          ),
-          const SizedBox(height: 6),
+            const SizedBox(height: 6),
+          ],
+          PhotoBubble(ctx: ctx, photos: photos),
         ],
-        PhotoBubble(ctx: ctx, photos: photos),
-      ],
+      ),
     );
   }
 }
@@ -119,23 +216,33 @@ class ForwardedGenericBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return IntrinsicWidth(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _forwardedHeader(ctx, forwarded),
-          const SizedBox(height: 4),
-          ...attachments.map((a) {
-            if (a is FileAttachment) {
-              return FileBubble(ctx: ctx, file: a, fill: true);
-            }
-            if (a is StickerAttachment) {
-              return StickerBubble(ctx: ctx, sticker: a);
-            }
-            return const SizedBox.shrink();
-          }),
-        ],
+    return _wrapForwardOriginTap(
+      ctx,
+      forwarded,
+      IntrinsicWidth(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _forwardedHeader(ctx, forwarded),
+            const SizedBox(height: 4),
+            ...attachments.map((a) {
+              if (a is FileAttachment) {
+                return FileBubble(ctx: ctx, file: a, fill: true);
+              }
+              if (a is StickerAttachment) {
+                return StickerBubble(ctx: ctx, sticker: a);
+              }
+              if (a is VideoAttachment && a.isNote) {
+                return _ForwardedVideoNotePreview(video: a, cs: ctx.cs);
+              }
+              if (a is VideoAttachment) {
+                return VideoBubble(ctx: ctx, video: a);
+              }
+              return const SizedBox.shrink();
+            }),
+          ],
+        ),
       ),
     );
   }
@@ -155,14 +262,18 @@ class ForwardedStickerBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _forwardedHeader(ctx, forwarded),
-        const SizedBox(height: 4),
-        StickerBubble(ctx: ctx, sticker: sticker),
-      ],
+    return _wrapForwardOriginTap(
+      ctx,
+      forwarded,
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _forwardedHeader(ctx, forwarded),
+          const SizedBox(height: 4),
+          StickerBubble(ctx: ctx, sticker: sticker),
+        ],
+      ),
     );
   }
 }
@@ -181,21 +292,25 @@ class ForwardedContactBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final contact = forwarded.originalContact!;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _forwardedHeader(ctx, forwarded),
-        const SizedBox(height: 4),
-        buildContactCard(
-          ctx,
-          firstName: contact.firstName,
-          lastName: contact.lastName,
-          name: contact.name,
-          photoUrl: contact.photoUrl ?? contact.baseUrl,
-          phoneNumber: contact.phoneNumber,
-        ),
-      ],
+    return _wrapForwardOriginTap(
+      ctx,
+      forwarded,
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _forwardedHeader(ctx, forwarded),
+          const SizedBox(height: 4),
+          buildContactCard(
+            ctx,
+            firstName: contact.firstName,
+            lastName: contact.lastName,
+            name: contact.name,
+            photoUrl: contact.photoUrl ?? contact.baseUrl,
+            phoneNumber: contact.phoneNumber,
+          ),
+        ],
+      ),
     );
   }
 }
