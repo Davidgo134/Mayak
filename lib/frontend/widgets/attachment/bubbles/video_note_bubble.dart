@@ -216,43 +216,43 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
               ),
               if (widget.attachment.videoId != null)
                 Positioned(
-                  right: 4,
-                  bottom: 4,
+                  right: 8,
+                  bottom: 8,
                   child: GestureDetector(
                     onTap: _requestTranscription,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      curve: Curves.easeOut,
-                      width: 34,
-                      height: 34,
-                      decoration: BoxDecoration(
-                        color: _transcriptionVisible
-                            ? widget.cs.primary
-                            : Colors.black54,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.25),
-                          width: 1,
-                        ),
-                      ),
+                    child: SizedBox(
+                      width: 28,
+                      height: 32,
                       child: Center(
                         child: _transcriptionLoading
                             ? RotationTransition(
                                 turns: _transcriptionIconAnim,
-                                child: const Icon(
+                                child: Icon(
                                   Symbols.graphic_eq,
-                                  color: Colors.white,
+                                  color: Colors.white.withValues(alpha: 0.9),
                                   size: 16,
+                                  shadows: const [
+                                    Shadow(
+                                      color: Colors.black54,
+                                      blurRadius: 4,
+                                    ),
+                                  ],
                                 ),
                               )
                             : Text(
                                 'Т',
                                 style: TextStyle(
                                   color: _transcriptionVisible
-                                      ? widget.cs.onPrimary
-                                      : Colors.white,
-                                  fontSize: 14,
+                                      ? widget.cs.primary
+                                      : Colors.white.withValues(alpha: 0.9),
+                                  fontSize: 15,
                                   fontWeight: FontWeight.w700,
+                                  shadows: const [
+                                    Shadow(
+                                      color: Colors.black54,
+                                      blurRadius: 4,
+                                    ),
+                                  ],
                                 ),
                               ),
                       ),
