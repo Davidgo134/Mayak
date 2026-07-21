@@ -80,6 +80,7 @@ import 'frontend/screens/auth/login_screen.dart';
 import 'frontend/widgets/adaptive_shell.dart';
 import 'frontend/widgets/custom_notification.dart';
 import 'frontend/widgets/liquid_glass.dart';
+import 'frontend/widgets/round_video_pip.dart';
 import 'frontend/widgets/small_spinner.dart';
 import 'frontend/widgets/theme_reveal.dart';
 
@@ -976,6 +977,7 @@ class KometAppState extends State<KometApp>
                               key: _captureBoundaryKey,
                               child: sChild!,
                             ),
+                            const RoundVideoPipOverlay(),
                             if (fpsOn) const FpsOverlayLayer(),
                           ],
                         );

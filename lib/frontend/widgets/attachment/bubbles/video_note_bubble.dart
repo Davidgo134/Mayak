@@ -1,17 +1,29 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:video_player/video_player.dart';
 import 'package:komet/main.dart';
 
 import '../../../../backend/modules/messages.dart';
 import '../../../../core/utils/haptics.dart';
+import '../../../../core/utils/media_cache.dart';
+import '../../../../core/utils/logger.dart';
 import '../../../../models/attachment.dart';
 import '../../small_spinner.dart';
-import '../../video_note_viewer.dart';
+import '../../round_video_pip.dart';
 
+/// Round video message bubble, Telegram-Android style:
+/// - Tap expands the circle in place (no separate fullscreen route).
+/// - A top bar appears above it: play/pause on the left, speed toggle
+///   and a close (X) button on the right. Close = fully stop & collapse.
+/// - Scrolling the bubble off-screen while playing hands the controller
+///   off to the global floating PiP mini player instead of stopping it.
+/// - Dragging along the ring edge scrubs; the thumb dot only shows while
+///   paused, matching Telegram's behavior.
 class VideoNoteBubble extends StatefulWidget {
   final VideoAttachment attachment;
   final String messageId;
@@ -34,8 +46,17 @@ class VideoNoteBubble extends StatefulWidget {
 
 class _VideoNoteBubbleState extends State<VideoNoteBubble>
     with SingleTickerProviderStateMixin {
-  static const double _size = 210;
+  static const double _collapsedSize = 210;
+  static const double _expandedSize = 260;
+
+  bool _expanded = false;
   bool _opening = false;
+  bool _error = false;
+  VideoPlayerController? _controller;
+  double _speed = 1.0;
+
+  bool _seeking = false;
+  double _seekProgress = 0;
 
   bool _transcriptionVisible = false;
   String? _transcriptionText;
@@ -72,6 +93,12 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
   void dispose() {
     _transcriptionSub?.cancel();
     _transcriptionIconAnim.dispose();
+    final c = _controller;
+    if (c != null &&
+        RoundVideoPipController.instance.state.value?.controller != c) {
+      c.removeListener(_onTick);
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -87,19 +114,182 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
     }
   }
 
-  Future<void> _openViewer() async {
-    if (_opening) return;
-    setState(() => _opening = true);
+  void _onTick() {
+    if (mounted && !_seeking) setState(() {});
+  }
+
+  Future<void> _toggleExpand() async {
+    if (_expanded) {
+      _togglePlay();
+      return;
+    }
+    Haptics.tap();
+    setState(() {
+      _expanded = true;
+      _opening = true;
+    });
     try {
-      await openVideoNoteViewer(
-        context,
-        attachment: widget.attachment,
+      final a = widget.attachment;
+      final videoId = a.videoId;
+      final token = a.videoToken;
+      if (videoId == null || token == null) {
+        setState(() {
+          _error = true;
+          _opening = false;
+        });
+        return;
+      }
+      final cacheName = 'videonote_$videoId.mp4';
+      var file = await MediaCache.existing(cacheName);
+      if (file == null) {
+        final url = await messagesModule.getVideoUrl(
+          messageId: widget.messageId,
+          chatId: widget.chatId,
+          token: token,
+          videoId: videoId,
+        );
+        if (url == null) throw Exception('no_url');
+        file = await MediaCache.getOrDownload(cacheName, url);
+        if (file == null) throw Exception('download');
+      }
+      if (!mounted) return;
+      final c = VideoPlayerController.file(file);
+      _controller = c;
+      await c.initialize();
+      if (!mounted) {
+        c.dispose();
+        return;
+      }
+      await c.setLooping(true);
+      c.addListener(_onTick);
+      c.play();
+      setState(() {
+        _opening = false;
+      });
+    } catch (e) {
+      logger.w('VideoNoteBubble._toggleExpand: $e');
+      if (mounted) {
+        setState(() {
+          _opening = false;
+          _error = true;
+        });
+      }
+    }
+  }
+
+  void _togglePlay() {
+    final c = _controller;
+    if (c == null || !c.value.isInitialized) return;
+    Haptics.tap();
+    setState(() => c.value.isPlaying ? c.pause() : c.play());
+  }
+
+  void _cycleSpeed() {
+    final c = _controller;
+    if (c == null || !c.value.isInitialized) return;
+    Haptics.tap();
+    const speeds = [1.0, 1.5, 2.0];
+    final idx = speeds.indexOf(_speed);
+    final next = speeds[(idx + 1) % speeds.length];
+    setState(() => _speed = next);
+    c.setPlaybackSpeed(next);
+  }
+
+  /// Close (X) button: fully stops playback and collapses back to the
+  /// small in-feed circle. No PiP is created — this is a hard stop,
+  /// distinct from scrolling away (which hands off to PiP).
+  void _closeExpanded() {
+    Haptics.tap();
+    final c = _controller;
+    c?.pause();
+    c?.removeListener(_onTick);
+    c?.dispose();
+    setState(() {
+      _controller = null;
+      _expanded = false;
+      _seeking = false;
+    });
+  }
+
+  /// Hands the currently playing controller off to the global floating
+  /// PiP mini player (Telegram's PipRoundVideoView behavior) instead of
+  /// stopping it, e.g. when the bubble scrolls off-screen or the user
+  /// navigates to another screen while it's still playing.
+  void handOffToPip() {
+    final c = _controller;
+    if (c == null || !c.value.isInitialized || !c.value.isPlaying) return;
+    RoundVideoPipController.instance.activate(
+      PipData(
+        controller: c,
         messageId: widget.messageId,
         chatId: widget.chatId,
+        onDisposeIfOwned: () {
+          c.removeListener(_onTick);
+          c.dispose();
+        },
+        onExpand: (context) {
+          RoundVideoPipController.instance.clear();
+        },
+      ),
+    );
+    setState(() {
+      _controller = null;
+      _expanded = false;
+    });
+  }
+
+  double _angleToProgress(Offset local, double size) {
+    final center = Offset(size / 2, size / 2);
+    final d = local - center;
+    var angle = math.atan2(d.dy, d.dx) + math.pi / 2;
+    if (angle < 0) angle += 2 * math.pi;
+    return (angle / (2 * math.pi)).clamp(0.0, 1.0);
+  }
+
+  bool _nearRingEdge(Offset local, double size) {
+    final center = Offset(size / 2, size / 2);
+    final dist = (local - center).distance;
+    final radius = size / 2;
+    return dist > radius - 28;
+  }
+
+  void _onRingPanStart(DragStartDetails details, double size) {
+    final c = _controller;
+    if (c == null || !c.value.isInitialized) return;
+    if (!_nearRingEdge(details.localPosition, size)) return;
+    Haptics.tap();
+    setState(() {
+      _seeking = true;
+      _seekProgress = _angleToProgress(details.localPosition, size);
+    });
+  }
+
+  void _onRingPanUpdate(DragUpdateDetails details, double size) {
+    if (!_seeking) return;
+    setState(() {
+      _seekProgress = _angleToProgress(details.localPosition, size);
+    });
+  }
+
+  void _onRingPanEnd(DragEndDetails details) {
+    final c = _controller;
+    if (c != null &&
+        c.value.isInitialized &&
+        c.value.duration.inMilliseconds > 0) {
+      final target = Duration(
+        milliseconds: (c.value.duration.inMilliseconds * _seekProgress)
+            .round(),
       );
-    } finally {
-      if (mounted) setState(() => _opening = false);
+      c.seekTo(target);
     }
+    setState(() => _seeking = false);
+  }
+
+  String _formatTime(Duration d) {
+    final totalSeconds = d.inSeconds;
+    final minutes = totalSeconds ~/ 60;
+    final seconds = totalSeconds % 60;
+    return '$minutes:${seconds.toString().padLeft(2, '0')}';
   }
 
   Future<void> _requestTranscription() async {
@@ -166,55 +356,200 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
     final a = widget.attachment;
     final preview = _previewBytes(a.previewData);
     final textColor = widget.textColor ?? widget.cs.onSurface;
+    final c = _controller;
+    final ready = c != null && c.value.isInitialized;
+    final size = _expanded ? _expandedSize : _collapsedSize;
+
+    double progress = 0;
+    if (ready && c.value.duration.inMilliseconds > 0) {
+      progress =
+          c.value.position.inMilliseconds / c.value.duration.inMilliseconds;
+    }
+    final shownProgress = _seeking ? _seekProgress : progress.clamp(0.0, 1.0);
+    final duration = ready ? c.value.duration : Duration.zero;
+    final elapsed = ready
+        ? (_seeking
+              ? Duration(
+                  milliseconds:
+                      (duration.inMilliseconds * _seekProgress).round(),
+                )
+              : c.value.position)
+        : Duration.zero;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        SizedBox(
-          width: _size,
-          height: _size,
+        if (_expanded)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: SizedBox(
+              width: _expandedSize,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _TopBarButton(
+                    icon: ready && c!.value.isPlaying
+                        ? Symbols.pause
+                        : Symbols.play_arrow,
+                    onTap: _togglePlay,
+                  ),
+                  Row(
+                    children: [
+                      GestureDetector(
+                        onTap: _cycleSpeed,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.35),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Text(
+                            '${_speed == _speed.roundToDouble() ? _speed.toInt() : _speed}x',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      _TopBarButton(icon: Symbols.close, onTap: _closeExpanded),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOutCubic,
+          width: size + (_expanded ? 36 : 0),
+          height: size + (_expanded ? 36 : 0),
           child: Stack(
             alignment: Alignment.center,
             clipBehavior: Clip.none,
             children: [
+              if (_expanded)
+                GestureDetector(
+                  onPanStart: (d) => _onRingPanStart(d, size + 36),
+                  onPanUpdate: (d) => _onRingPanUpdate(d, size + 36),
+                  onPanEnd: _onRingPanEnd,
+                  child: CustomPaint(
+                    size: Size(size + 36, size + 36),
+                    painter: _RingPainter(
+                      progress: shownProgress,
+                      showThumb: ready && !c!.value.isPlaying,
+                    ),
+                  ),
+                ),
               GestureDetector(
-                onTap: _openViewer,
-                child: ClipOval(
-                  child: SizedBox(
-                    width: _size,
-                    height: _size,
-                    child: preview != null
-                        ? Image.memory(
-                            preview,
-                            fit: BoxFit.cover,
-                            gaplessPlayback: true,
-                          )
-                        : Container(color: widget.cs.surfaceContainerHighest),
+                onTap: _toggleExpand,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 260),
+                  curve: Curves.easeOutCubic,
+                  width: size,
+                  height: size,
+                  child: ClipOval(
+                    child: SizedBox(
+                      width: size,
+                      height: size,
+                      child: ready
+                          ? FittedBox(
+                              fit: BoxFit.cover,
+                              clipBehavior: Clip.hardEdge,
+                              child: SizedBox(
+                                width: c!.value.size.width,
+                                height: c.value.size.height,
+                                child: VideoPlayer(c),
+                              ),
+                            )
+                          : (preview != null
+                                ? Image.memory(
+                                    preview,
+                                    fit: BoxFit.cover,
+                                    gaplessPlayback: true,
+                                  )
+                                : Container(
+                                    color: widget.cs.surfaceContainerHighest,
+                                  )),
+                    ),
                   ),
                 ),
               ),
-              IgnorePointer(
-                child: Container(
-                  width: 52,
-                  height: 52,
-                  decoration: const BoxDecoration(
-                    color: Colors.black45,
-                    shape: BoxShape.circle,
-                  ),
-                  child: _opening
-                      ? const Padding(
-                          padding: EdgeInsets.all(14),
-                          child: SmallSpinner(size: 36, color: Colors.white),
-                        )
-                      : const Icon(
-                          Symbols.play_arrow,
-                          color: Colors.white,
-                          size: 30,
-                        ),
+              if (_opening)
+                const IgnorePointer(
+                  child: SmallSpinner(size: 40, color: Colors.white),
                 ),
-              ),
-              if (widget.attachment.videoId != null)
+              if (_error && !_opening)
+                const IgnorePointer(
+                  child: Icon(Symbols.error, color: Colors.white54, size: 48),
+                ),
+              if (!_expanded && !_opening)
+                IgnorePointer(
+                  child: Container(
+                    width: 52,
+                    height: 52,
+                    decoration: const BoxDecoration(
+                      color: Colors.black45,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Symbols.play_arrow,
+                      color: Colors.white,
+                      size: 30,
+                    ),
+                  ),
+                ),
+              if (_expanded && ready && !c!.value.isPlaying)
+                IgnorePointer(
+                  child: Container(
+                    width: 64,
+                    height: 64,
+                    decoration: const BoxDecoration(
+                      color: Colors.black38,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Symbols.play_arrow,
+                      color: Colors.white,
+                      size: 34,
+                    ),
+                  ),
+                ),
+              if (_expanded && ready)
+                Positioned(
+                  bottom: 4,
+                  left: 8,
+                  child: Text(
+                    _formatTime(elapsed),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
+                    ),
+                  ),
+                ),
+              if (_expanded && ready)
+                Positioned(
+                  bottom: 4,
+                  right: 8,
+                  child: Text(
+                    _formatTime(duration),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
+                    ),
+                  ),
+                ),
+              if (!_expanded && widget.attachment.videoId != null)
                 Positioned(
                   right: 8,
                   bottom: 8,
@@ -270,7 +605,7 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
               ? Container(
                   key: const ValueKey('transcription'),
                   margin: const EdgeInsets.only(top: 8),
-                  width: _size,
+                  width: _collapsedSize,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
                     vertical: 10,
@@ -296,11 +631,84 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
                 )
               : const SizedBox(
                   key: ValueKey('no-transcription'),
-                  width: _size,
+                  width: _collapsedSize,
                   height: 0,
                 ),
         ),
       ],
     );
   }
+}
+
+class _TopBarButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _TopBarButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.35),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: Colors.white, size: 20),
+      ),
+    );
+  }
+}
+
+class _RingPainter extends CustomPainter {
+  final double progress;
+  final bool showThumb;
+
+  _RingPainter({required this.progress, required this.showThumb});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2 - 4;
+
+    final trackPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.3)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3;
+    canvas.drawCircle(center, radius, trackPaint);
+
+    final progressPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      -math.pi / 2,
+      2 * math.pi * progress,
+      false,
+      progressPaint,
+    );
+
+    if (showThumb) {
+      final thumbAngle = -math.pi / 2 + 2 * math.pi * progress;
+      final thumbCenter = Offset(
+        center.dx + radius * math.cos(thumbAngle),
+        center.dy + radius * math.sin(thumbAngle),
+      );
+      final thumbShadowPaint = Paint()
+        ..color = Colors.black.withValues(alpha: 0.35)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+      canvas.drawCircle(thumbCenter, 9, thumbShadowPaint);
+      final thumbPaint = Paint()..color = Colors.white;
+      canvas.drawCircle(thumbCenter, 8, thumbPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _RingPainter oldDelegate) =>
+      oldDelegate.progress != progress || oldDelegate.showThumb != showThumb;
 }
