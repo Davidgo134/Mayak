@@ -82,6 +82,9 @@ import 'frontend/widgets/custom_notification.dart';
 import 'frontend/widgets/liquid_glass.dart';
 import 'frontend/widgets/round_video_pip.dart';
 
+import 'frontend/widgets/small_spinner.dart';
+import 'frontend/widgets/theme_reveal.dart';
+
 final ValueNotifier<RoundVideoPanelState?> roundVideoPanelState =
     ValueNotifier<RoundVideoPanelState?>(null);
 
@@ -100,9 +103,6 @@ class RoundVideoPanelState {
     required this.onClose,
   });
 }
-
-import 'frontend/widgets/small_spinner.dart';
-import 'frontend/widgets/theme_reveal.dart';
 
 final api = Api();
 final accountModule = AccountModule(api);
