@@ -99,6 +99,7 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
       c.removeListener(_onTick);
       c.dispose();
     }
+    roundVideoPanelState.value = null;
     super.dispose();
   }
 
@@ -166,6 +167,7 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
       setState(() {
         _opening = false;
       });
+      _publishPanelState();
     } catch (e) {
       logger.w('VideoNoteBubble._toggleExpand: $e');
       if (mounted) {
@@ -177,11 +179,27 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
     }
   }
 
+  void _publishPanelState() {
+    if (!_expanded) {
+      roundVideoPanelState.value = null;
+      return;
+    }
+    final c = _controller;
+    roundVideoPanelState.value = RoundVideoPanelState(
+      isPlaying: c?.value.isPlaying ?? false,
+      speed: _speed,
+      onTogglePlay: _togglePlay,
+      onCycleSpeed: _cycleSpeed,
+      onClose: _closeExpanded,
+    );
+  }
+
   void _togglePlay() {
     final c = _controller;
     if (c == null || !c.value.isInitialized) return;
     Haptics.tap();
     setState(() => c.value.isPlaying ? c.pause() : c.play());
+    _publishPanelState();
   }
 
   void _cycleSpeed() {
@@ -193,6 +211,7 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
     final next = speeds[(idx + 1) % speeds.length];
     setState(() => _speed = next);
     c.setPlaybackSpeed(next);
+    _publishPanelState();
   }
 
   /// Close (X) button: fully stops playback and collapses back to the
@@ -209,6 +228,7 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
       _expanded = false;
       _seeking = false;
     });
+    _publishPanelState();
   }
 
   /// Hands the currently playing controller off to the global floating
@@ -236,6 +256,7 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
       _controller = null;
       _expanded = false;
     });
+    _publishPanelState();
   }
 
   double _angleToProgress(Offset local, double size) {
@@ -380,51 +401,6 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (_expanded)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: SizedBox(
-              width: _expandedSize,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _TopBarButton(
-                    icon: ready && c!.value.isPlaying
-                        ? Symbols.pause
-                        : Symbols.play_arrow,
-                    onTap: _togglePlay,
-                  ),
-                  Row(
-                    children: [
-                      GestureDetector(
-                        onTap: _cycleSpeed,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.35),
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: Text(
-                            '${_speed == _speed.roundToDouble() ? _speed.toInt() : _speed}x',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      _TopBarButton(icon: Symbols.close, onTap: _closeExpanded),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
         AnimatedContainer(
           duration: const Duration(milliseconds: 260),
           curve: Curves.easeOutCubic,
@@ -436,14 +412,19 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
             children: [
               if (_expanded)
                 GestureDetector(
+                  behavior: HitTestBehavior.opaque,
                   onPanStart: (d) => _onRingPanStart(d, size + 36),
                   onPanUpdate: (d) => _onRingPanUpdate(d, size + 36),
                   onPanEnd: _onRingPanEnd,
-                  child: CustomPaint(
-                    size: Size(size + 36, size + 36),
-                    painter: _RingPainter(
-                      progress: shownProgress,
-                      showThumb: ready && !c!.value.isPlaying,
+                  child: SizedBox(
+                    width: size + 36,
+                    height: size + 36,
+                    child: CustomPaint(
+                      size: Size(size + 36, size + 36),
+                      painter: _RingPainter(
+                        progress: shownProgress,
+                        showThumb: ready && !c!.value.isPlaying,
+                      ),
                     ),
                   ),
                 ),
@@ -636,29 +617,6 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
                 ),
         ),
       ],
-    );
-  }
-}
-
-class _TopBarButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _TopBarButton({required this.icon, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.35),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(icon, color: Colors.white, size: 20),
-      ),
     );
   }
 }

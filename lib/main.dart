@@ -81,6 +81,26 @@ import 'frontend/widgets/adaptive_shell.dart';
 import 'frontend/widgets/custom_notification.dart';
 import 'frontend/widgets/liquid_glass.dart';
 import 'frontend/widgets/round_video_pip.dart';
+
+final ValueNotifier<RoundVideoPanelState?> roundVideoPanelState =
+    ValueNotifier<RoundVideoPanelState?>(null);
+
+class RoundVideoPanelState {
+  final bool isPlaying;
+  final double speed;
+  final VoidCallback onTogglePlay;
+  final VoidCallback onCycleSpeed;
+  final VoidCallback onClose;
+
+  const RoundVideoPanelState({
+    required this.isPlaying,
+    required this.speed,
+    required this.onTogglePlay,
+    required this.onCycleSpeed,
+    required this.onClose,
+  });
+}
+
 import 'frontend/widgets/small_spinner.dart';
 import 'frontend/widgets/theme_reveal.dart';
 

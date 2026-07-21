@@ -93,6 +93,7 @@ import '../../widgets/swipe_route.dart';
 import '../../widgets/schedule_time_picker.dart';
 import '../../widgets/chat_wallpaper_sheet.dart';
 import '../../widgets/chat_wallpaper_view.dart';
+import '../../../main.dart';
 import '../../widgets/glossy_pill.dart';
 import '../../widgets/liquid_glass.dart';
 import 'scheduled_messages_screen.dart';
@@ -4406,6 +4407,48 @@ class _ChatScreenState extends State<ChatScreen>
     return Column(
       children: [
         ?banner,
+        ValueListenableBuilder<RoundVideoPanelState?>(
+          valueListenable: roundVideoPanelState,
+          builder: (context, panel, _) {
+            if (panel == null) return const SizedBox.shrink();
+            return Container(
+              height: 44,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              margin: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+              decoration: BoxDecoration(
+                color: cs.surfaceContainerHigh,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                children: [
+                  IconButton(
+                    onPressed: panel.onTogglePlay,
+                    icon: Icon(panel.isPlaying ? Symbols.pause : Symbols.play_arrow),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  const SizedBox(width: 4),
+                  GestureDetector(
+                    onTap: panel.onCycleSpeed,
+                    child: Text(
+                      '${panel.speed == panel.speed.roundToDouble() ? panel.speed.toInt() : panel.speed}x',
+                      style: TextStyle(
+                        color: cs.onSurface,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    onPressed: panel.onClose,
+                    icon: const Icon(Symbols.close),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
         Expanded(
           child: Stack(
             fit: StackFit.expand,
