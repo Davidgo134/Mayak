@@ -96,8 +96,32 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
     final c = _controller;
     if (c != null &&
         RoundVideoPipController.instance.state.value?.controller != c) {
-      c.removeListener(_onTick);
-      c.dispose();
+      // Bugfix: previously any dispose() (including the widget being
+      // scrolled off-screen while still playing) hard-stopped and disposed
+      // the controller, so the PiP hand-off in handOffToPip() was dead code
+      // -- it was never called from anywhere. Telegram's round video keeps
+      // playing in a floating mini player when the bubble leaves the
+      // viewport; we now detect that case here and hand off instead of
+      // destroying the controller.
+      if (c.value.isInitialized && c.value.isPlaying) {
+        RoundVideoPipController.instance.activate(
+          PipData(
+            controller: c,
+            messageId: widget.messageId,
+            chatId: widget.chatId,
+            onDisposeIfOwned: () {
+              c.removeListener(_onTick);
+              c.dispose();
+            },
+            onExpand: (context) {
+              RoundVideoPipController.instance.clear();
+            },
+          ),
+        );
+      } else {
+        c.removeListener(_onTick);
+        c.dispose();
+      }
     }
     roundVideoPanelState.value = null;
     super.dispose();
@@ -285,11 +309,29 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
     });
   }
 
+  DateTime _lastLiveSeek = DateTime.fromMillisecondsSinceEpoch(0);
+
   void _onRingPanUpdate(DragUpdateDetails details, double size) {
     if (!_seeking) return;
     setState(() {
       _seekProgress = _angleToProgress(details.localPosition, size);
     });
+    // Live-scrub the actual player while dragging, like Telegram, but
+    // throttled: calling VideoPlayerController.seekTo() on every pixel of
+    // drag (up to 60x/sec) queues far more native seek calls than
+    // ExoPlayer/AVPlayer can keep up with, so the preview visibly lags
+    // behind the finger. Capping it to ~10 calls/sec keeps the scrub feeling
+    // live without saturating the native seek queue.
+    final now = DateTime.now();
+    if (now.difference(_lastLiveSeek).inMilliseconds < 100) return;
+    _lastLiveSeek = now;
+    final c = _controller;
+    if (c != null && c.value.isInitialized && c.value.duration.inMilliseconds > 0) {
+      final target = Duration(
+        milliseconds: (c.value.duration.inMilliseconds * _seekProgress).round(),
+      );
+      c.seekTo(target);
+    }
   }
 
   void _onRingPanEnd(DragEndDetails details) {
