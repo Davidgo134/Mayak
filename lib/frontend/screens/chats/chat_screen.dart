@@ -4396,6 +4396,51 @@ class _ChatScreenState extends State<ChatScreen>
     );
   }
 
+  Widget _buildRoundVideoPanel(ColorScheme cs) {
+    return ValueListenableBuilder<RoundVideoPanelState?>(
+      valueListenable: roundVideoPanelState,
+      builder: (context, panel, _) {
+        if (panel == null) return const SizedBox.shrink();
+        return Container(
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          margin: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+          decoration: BoxDecoration(
+            color: cs.surfaceContainerHigh,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            children: [
+              IconButton(
+                onPressed: panel.onTogglePlay,
+                icon: Icon(panel.isPlaying ? Symbols.pause : Symbols.play_arrow),
+                visualDensity: VisualDensity.compact,
+              ),
+              const SizedBox(width: 4),
+              GestureDetector(
+                onTap: panel.onCycleSpeed,
+                child: Text(
+                  '${panel.speed == panel.speed.roundToDouble() ? panel.speed.toInt() : panel.speed}x',
+                  style: TextStyle(
+                    color: cs.onSurface,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              IconButton(
+                onPressed: panel.onClose,
+                icon: const Icon(Symbols.close),
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildColorBody() {
     final cs = Theme.of(context).colorScheme;
     final banner = _buildPinnedBanner(floating: false);
@@ -4407,48 +4452,7 @@ class _ChatScreenState extends State<ChatScreen>
     return Column(
       children: [
         ?banner,
-        ValueListenableBuilder<RoundVideoPanelState?>(
-          valueListenable: roundVideoPanelState,
-          builder: (context, panel, _) {
-            if (panel == null) return const SizedBox.shrink();
-            return Container(
-              height: 44,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              margin: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-              decoration: BoxDecoration(
-                color: cs.surfaceContainerHigh,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Row(
-                children: [
-                  IconButton(
-                    onPressed: panel.onTogglePlay,
-                    icon: Icon(panel.isPlaying ? Symbols.pause : Symbols.play_arrow),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  const SizedBox(width: 4),
-                  GestureDetector(
-                    onTap: panel.onCycleSpeed,
-                    child: Text(
-                      '${panel.speed == panel.speed.roundToDouble() ? panel.speed.toInt() : panel.speed}x',
-                      style: TextStyle(
-                        color: cs.onSurface,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    onPressed: panel.onClose,
-                    icon: const Icon(Symbols.close),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
+        _buildRoundVideoPanel(cs),
         Expanded(
           child: Stack(
             fit: StackFit.expand,
@@ -4548,6 +4552,30 @@ class _ChatScreenState extends State<ChatScreen>
               child: banner,
             ),
           ),
+        // Bugfix: the round-video control panel (play/pause, speed, close)
+        // was only wired into _buildColorBody(). Any non-"color" chrome
+        // style (blur, transparent, none, liquidGlass) renders
+        // _buildUnderlapBody() instead, which never included this panel at
+        // all -- so it was structurally impossible for it to appear under
+        // those themes, regardless of playback state. Mirrored here as a
+        // floating overlay, positioned below the pinned-message banner
+        // (or the app bar/status bar when there is no banner) so it never
+        // overlaps either.
+        ValueListenableBuilder<double>(
+          valueListenable: _pinnedBannerHeight,
+          builder: (context, pinnedHeight, _) => Positioned(
+            top: banner != null
+                ? bannerTop + pinnedHeight + 8
+                : MediaQuery.paddingOf(context).top +
+                      (AppVisualStyle.current.value.glossyChrome
+                          ? _glossyHeaderHeight
+                          : kToolbarHeight) +
+                      8,
+            left: 8,
+            right: 8,
+            child: _buildRoundVideoPanel(cs),
+          ),
+        ),
         ValueListenableBuilder<double>(
           valueListenable: _composerHeight,
           builder: (context, height, _) => Positioned(
