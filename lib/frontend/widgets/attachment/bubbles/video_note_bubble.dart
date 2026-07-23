@@ -272,7 +272,17 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
           c.dispose();
         },
         onExpand: (context) {
-          RoundVideoPipController.instance.clear();
+          // Bugfix: this used to call clear() with the default
+          // disposeController: false, which detached the PipData without
+          // ever invoking onDisposeIfOwned. Since there is no bubble on
+          // screen to reclaim this controller (the original message may be
+          // scrolled far away or on a different chat), the VideoPlayerController
+          // was orphaned -- still decoding and holding native player/texture
+          // resources with nothing left to ever call .dispose() on it. Tapping
+          // the PiP bubble now stops playback and fully disposes it, same as
+          // the explicit close (X) button, until in-place restore is wired up.
+          c.pause();
+          RoundVideoPipController.instance.clear(disposeController: true);
         },
       ),
     );
