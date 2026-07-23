@@ -4401,40 +4401,58 @@ class _ChatScreenState extends State<ChatScreen>
       valueListenable: roundVideoPanelState,
       builder: (context, panel, _) {
         if (panel == null) return const SizedBox.shrink();
-        return Container(
-          height: 44,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          margin: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-          decoration: BoxDecoration(
-            color: cs.surfaceContainerHigh,
+        // Design fix: this used to be a flat Container(color:
+        // cs.surfaceContainerHigh) -- the only chat panel in the whole
+        // screen that didn't route through GlassSurface/_FrostedPanel, so
+        // it looked visually foreign next to the composer, sticker panel,
+        // and AppBar, which all share the same frosted/liquid material.
+        // Now it uses the same _FrostedPanel wrapper (AppFrost tint +
+        // hairline border, liquid-glass shader when enabled) as everything
+        // else, so it reads as part of one consistent design language
+        // instead of a bolted-on widget.
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+          child: ClipRRect(
             borderRadius: BorderRadius.circular(14),
-          ),
-          child: Row(
-            children: [
-              IconButton(
-                onPressed: panel.onTogglePlay,
-                icon: Icon(panel.isPlaying ? Symbols.pause : Symbols.play_arrow),
-                visualDensity: VisualDensity.compact,
-              ),
-              const SizedBox(width: 4),
-              GestureDetector(
-                onTap: panel.onCycleSpeed,
-                child: Text(
-                  '${panel.speed == panel.speed.roundToDouble() ? panel.speed.toInt() : panel.speed}x',
-                  style: TextStyle(
-                    color: cs.onSurface,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
+            child: _FrostedPanel(
+              tint: AppFrost.panelTint(cs),
+              border: Border.fromBorderSide(AppFrost.hairline(cs)),
+              child: SizedBox(
+                height: 44,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        onPressed: panel.onTogglePlay,
+                        icon: Icon(
+                          panel.isPlaying ? Symbols.pause : Symbols.play_arrow,
+                        ),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      const SizedBox(width: 4),
+                      GestureDetector(
+                        onTap: panel.onCycleSpeed,
+                        child: Text(
+                          '${panel.speed == panel.speed.roundToDouble() ? panel.speed.toInt() : panel.speed}x',
+                          style: TextStyle(
+                            color: cs.onSurface,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        onPressed: panel.onClose,
+                        icon: const Icon(Symbols.close),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ],
                   ),
                 ),
               ),
-              const Spacer(),
-              IconButton(
-                onPressed: panel.onClose,
-                icon: const Icon(Symbols.close),
-                visualDensity: VisualDensity.compact,
-              ),
-            ],
+            ),
           ),
         );
       },

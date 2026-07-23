@@ -274,14 +274,57 @@ class VideoNoteController {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                ClipOval(
-                  child: SizedBox(
-                    width: 320, // Увеличил размер кружка как на скрине
-                    height: 320,
-                    child: texId != null
-                        ? Texture(textureId: texId)
-                        : Container(color: Colors.black),
-                  ),
+                Stack(
+                  clipBehavior: Clip.none,
+                  alignment: Alignment.center,
+                  children: [
+                    ClipOval(
+                      child: SizedBox(
+                        width: 320, // Увеличил размер кружка как на скрине
+                        height: 320,
+                        child: texId != null
+                            ? Texture(textureId: texId)
+                            : Container(color: Colors.black),
+                      ),
+                    ),
+                    // Feature that was discussed but never wired into the
+                    // recording UI: switchCamera() already existed on this
+                    // controller and works mid-recording, but nothing on
+                    // screen ever called it -- there was no flip-camera
+                    // button during video-note recording at all.
+                    Positioned(
+                      right: 4,
+                      bottom: 4,
+                      child: ValueListenableBuilder<bool>(
+                        valueListenable: _switchingCamera,
+                        builder: (context, switching, _) => Material(
+                          color: Colors.black54,
+                          shape: const CircleBorder(),
+                          child: InkWell(
+                            customBorder: const CircleBorder(),
+                            onTap: switching ? null : switchCamera,
+                            child: Padding(
+                              padding: const EdgeInsets.all(10),
+                              child: switching
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Icon(
+                                      Icons.flip_camera_ios_outlined,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 20),
                 _buildActionBar(cs),
