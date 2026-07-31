@@ -6,6 +6,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.hardware.camera2.CameraManager
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -263,6 +264,19 @@ class MainActivity : FlutterActivity() {
                     ?: result.error("NOT_READY", "recorder not initialized", null)
                 "switchCamera" -> noteRecorder?.switchCamera(result)
                     ?: result.error("NOT_READY", "recorder not initialized", null)
+                "toggleTorch" -> {
+                    val on = call.argument<Boolean>("on") ?: false
+                    try {
+                        val cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
+                        val cameraIdList = cameraManager.cameraIdList
+                        if (cameraIdList.isNotEmpty()) {
+                            cameraManager.setTorchMode(cameraIdList[0], on)
+                        }
+                        result.success(null)
+                    } catch (e: Exception) {
+                        result.error("TORCH_ERROR", e.message, null)
+                    }
+                }
                 "dispose" -> {
                     noteRecorder?.dispose()
                     noteRecorder = null
@@ -418,9 +432,6 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    // Центр-кроп видео в квадрат size×size (без искажений) через media3
-    // Transformer: LAYOUT_SCALE_TO_FIT_WITH_CROP заполняет квадрат и обрезает
-    // лишнее по бокам.
     @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
     private fun cropSquare(
         input: String,
@@ -429,7 +440,6 @@ class MainActivity : FlutterActivity() {
         result: MethodChannel.Result,
     ) {
         try {
-            // Параметры энкодера как у официального клиента: H.264 ~1 Мбит/с CBR.
             val videoSettings = VideoEncoderSettings.Builder()
                 .setBitrate(1_024_000)
                 .setBitrateMode(MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR)
@@ -460,7 +470,6 @@ class MainActivity : FlutterActivity() {
                     }
                 })
                 .build()
-            // Аудио в моно (как у клиента).
             val mono = ChannelMixingAudioProcessor()
             mono.putChannelMixingMatrix(ChannelMixingMatrix.create(1, 1))
             mono.putChannelMixingMatrix(ChannelMixingMatrix.create(2, 1))
@@ -723,7 +732,6 @@ class MainActivity : FlutterActivity() {
     private fun connectivityManager(): ConnectivityManager =
         getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
 
-    // Перечисляет активные интерфейсы: есть ли tun-туннель и какие прямые.
     private fun detectInterfaces(): Map<String, Any> {
         val tunNames = ArrayList<String>()
         val directNames = ArrayList<String>()
@@ -757,7 +765,6 @@ class MainActivity : FlutterActivity() {
         )
     }
 
-    // VPN активен, даже если tun-интерфейс не виден приложению (Android 10+).
     private fun hasVpnTransport(): Boolean {
         val cm = connectivityManager()
         for (network in cm.allNetworks) {
@@ -777,9 +784,6 @@ class MainActivity : FlutterActivity() {
         val score: Int,
     )
 
-    // Привязка к не-VPN сети. Надёжный путь — попросить систему выдать
-    // подходящую сеть через NetworkCallback (валидный, привязываемый
-    // Network), и лишь при тайм-ауте — перебор getAllNetworks().
     private fun bindToNonVpnNetwork(result: MethodChannel.Result) {
         val cm = connectivityManager()
         val main = Handler(Looper.getMainLooper())
@@ -849,9 +853,6 @@ class MainActivity : FlutterActivity() {
         }, 4000L)
     }
 
-    // Запасной путь: перебор getAllNetworks(). Жёсткий фильтр — только
-    // исключение VPN-транспорта; INTERNET/NOT_VPN/VALIDATED лишь повышают
-    // приоритет (физическая сеть под VPN часто теряет эти capability).
     private fun bindByEnumeration(): Map<String, Any?> {
         val cm = connectivityManager()
         val networks = cm.allNetworks

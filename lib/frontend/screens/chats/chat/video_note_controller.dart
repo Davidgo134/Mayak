@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../../core/media/native_video_note_recorder.dart';
 import '../../../../core/utils/haptics.dart';
@@ -35,6 +36,8 @@ class VideoNoteController {
   final ValueNotifier<bool> _locked = ValueNotifier(false);
   final ValueNotifier<double> _lockDrag = ValueNotifier(0);
   final ValueNotifier<bool> _switchingCamera = ValueNotifier(false);
+  final ValueNotifier<bool> _torchOn = ValueNotifier(false);
+  final ValueNotifier<bool> _isPaused = ValueNotifier(false);
   static const double _lockThreshold = 90;
   final Stopwatch _stopwatch = Stopwatch();
   Timer? _timer;
@@ -62,6 +65,17 @@ class VideoNoteController {
       }
     } finally {
       _switchingCamera.value = false;
+    }
+  }
+
+  Future<void> toggleTorch() async {
+    try {
+      final newState = !_torchOn.value;
+      await _rec.toggleTorch(newState);
+      _torchOn.value = newState;
+      Haptics.tap();
+    } catch (e) {
+      logger.w('toggleTorch: $e');
     }
   }
 
@@ -109,12 +123,9 @@ class VideoNoteController {
     await _rec.dispose();
   }
 
-  
   Future<void> startWithCamera({required bool isFront}) async {
     if (_isRecording.value) return;
     _stopRequested = false;
-
-    // Сразу лочим запись, чтобы она шла без удержания
     _locked.value = true;
 
     if (_rec.textureId == null) {
@@ -142,11 +153,12 @@ class VideoNoteController {
       _cancelDrag.value = 0;
       _lockDrag.value = 0;
       _cancelled = false;
+      _isPaused.value = false;
       _isRecording.value = true;
       FocusManager.instance.primaryFocus?.unfocus();
       Haptics.send();
       _timer = Timer.periodic(const Duration(milliseconds: 100), (_) {
-        _elapsedMs.value = _stopwatch.elapsedMilliseconds;
+        if (!_isPaused.value) _elapsedMs.value = _stopwatch.elapsedMilliseconds;
       });
       _showOverlay();
       if (_stopRequested) {
@@ -184,11 +196,12 @@ class VideoNoteController {
       _locked.value = false;
       _lockDrag.value = 0;
       _cancelled = false;
+      _isPaused.value = false;
       _isRecording.value = true;
       FocusManager.instance.primaryFocus?.unfocus();
       Haptics.send();
       _timer = Timer.periodic(const Duration(milliseconds: 100), (_) {
-        _elapsedMs.value = _stopwatch.elapsedMilliseconds;
+        if (!_isPaused.value) _elapsedMs.value = _stopwatch.elapsedMilliseconds;
       });
       _showOverlay();
       if (_stopRequested) {
@@ -239,6 +252,8 @@ class VideoNoteController {
     _stopwatch.stop();
     final elapsed = _stopwatch.elapsedMilliseconds;
     _isRecording.value = false;
+    _isPaused.value = false;
+    _torchOn.value = false;
     _cancelDrag.value = 0;
     _locked.value = false;
     _lockDrag.value = 0;
@@ -257,7 +272,6 @@ class VideoNoteController {
       return;
     }
 
-    // Файл уже квадратный 480×480 (нативная запись) — шлём как есть.
     await onRecorded(File(path), elapsed);
   }
 
@@ -267,68 +281,94 @@ class VideoNoteController {
       builder: (context) {
         final texId = _textureId.value;
         final cs = Theme.of(context).colorScheme;
+        final screenWidth = MediaQuery.of(context).size.width;
+        final circleSize = screenWidth - 32.0;
         return Positioned.fill(
           child: Container(
             color: Colors.black.withValues(alpha: 0.55),
-            alignment: Alignment.center,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Stack(
-                  clipBehavior: Clip.none,
-                  alignment: Alignment.center,
-                  children: [
-                    ClipOval(
-                      child: SizedBox(
-                        width: 320, // Увеличил размер кружка как на скрине
-                        height: 320,
-                        child: texId != null
-                            ? Texture(textureId: texId)
-                            : Container(color: Colors.black),
+            child: SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Spacer(),
+                  Stack(
+                    clipBehavior: Clip.none,
+                    alignment: Alignment.center,
+                    children: [
+                      ClipOval(
+                        child: SizedBox(
+                          width: circleSize,
+                          height: circleSize,
+                          child: texId != null
+                              ? Texture(textureId: texId)
+                              : Container(color: Colors.black),
+                        ),
                       ),
-                    ),
-                    // Feature that was discussed but never wired into the
-                    // recording UI: switchCamera() already existed on this
-                    // controller and works mid-recording, but nothing on
-                    // screen ever called it -- there was no flip-camera
-                    // button during video-note recording at all.
-                    Positioned(
-                      right: 4,
-                      bottom: 4,
+                      // Arc progress
+                      ValueListenableBuilder<int>(
+                        valueListenable: _elapsedMs,
+                        builder: (context, ms, _) {
+                          final progress = (ms / 60000).clamp(0.0, 1.0);
+                          return SizedBox(
+                            width: circleSize + 6,
+                            height: circleSize + 6,
+                            child: CircularProgressIndicator(
+                              value: progress,
+                              strokeWidth: 3,
+                              color: Colors.white,
+                              backgroundColor: Colors.white.withValues(alpha: 0.2),
+                            ),
+                          );
+                        },
+                      ),
+                      // Segmented pill: flip | torch
+                      Positioned(
+                        top: 12,
+                        child: ValueListenableBuilder<bool>(
+                          valueListenable: _switchingCamera,
+                          builder: (context, switching, _) =>
+                              ValueListenableBuilder<bool>(
+                            valueListenable: _torchOn,
+                            builder: (context, torchOn, _) =>
+                                _buildPill(cs, switching, torchOn),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  // Pause button — above send, right-aligned
+                  Padding(
+                    padding: const EdgeInsets.only(right: 24),
+                    child: Align(
+                      alignment: Alignment.centerRight,
                       child: ValueListenableBuilder<bool>(
-                        valueListenable: _switchingCamera,
-                        builder: (context, switching, _) => Material(
-                          color: Colors.black54,
+                        valueListenable: _isPaused,
+                        builder: (context, paused, _) => Material(
+                          color: cs.surfaceContainerHigh,
                           shape: const CircleBorder(),
                           child: InkWell(
                             customBorder: const CircleBorder(),
-                            onTap: switching ? null : switchCamera,
+                            onTap: _togglePause,
                             child: Padding(
-                              padding: const EdgeInsets.all(10),
-                              child: switching
-                                  ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.white,
-                                      ),
-                                    )
-                                  : const Icon(
-                                      Icons.flip_camera_ios_outlined,
-                                      color: Colors.white,
-                                      size: 20,
-                                    ),
+                              padding: const EdgeInsets.all(12),
+                              child: Icon(
+                                paused ? Symbols.play_arrow : Symbols.pause,
+                                color: cs.onSurface,
+                                size: 22,
+                              ),
                             ),
                           ),
                         ),
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                _buildActionBar(cs),
-              ],
+                  ),
+                  const SizedBox(height: 8),
+                  _buildActionBar(cs),
+                  const Spacer(),
+                ],
+              ),
             ),
           ),
         );
@@ -338,12 +378,80 @@ class VideoNoteController {
     overlay.insert(_overlay!);
   }
 
+  Widget _buildPill(ColorScheme cs, bool switching, bool torchOn) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          decoration: BoxDecoration(
+            color: cs.surface.withValues(alpha: 0.35),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Flip
+              InkWell(
+                onTap: switching ? null : switchCamera,
+                borderRadius: const BorderRadius.horizontal(left: Radius.circular(20)),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  child: switching
+                      ? SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: cs.onSurface,
+                          ),
+                        )
+                      : Icon(Symbols.flip_camera_ios, color: cs.onSurface, size: 20),
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 28,
+                color: cs.outline.withValues(alpha: 0.4),
+              ),
+              // Torch
+              InkWell(
+                onTap: toggleTorch,
+                borderRadius: const BorderRadius.horizontal(right: Radius.circular(20)),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  child: Icon(
+                    torchOn ? Symbols.flashlight_on : Symbols.flashlight_off,
+                    color: torchOn ? cs.primary : cs.onSurface,
+                    size: 20,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _togglePause() {
+    if (!_isRecording.value) return;
+    final pausing = !_isPaused.value;
+    if (pausing) {
+      _stopwatch.stop();
+    } else {
+      _stopwatch.start();
+    }
+    _isPaused.value = pausing;
+    Haptics.tap();
+  }
+
   Widget _buildActionBar(ColorScheme cs) {
     return Container(
       constraints: const BoxConstraints(minWidth: 300),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFF1C1C1E),
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(28),
       ),
       child: Row(
@@ -354,8 +462,8 @@ class VideoNoteController {
             width: 8,
             height: 8,
             margin: const EdgeInsets.only(right: 8),
-            decoration: const BoxDecoration(
-              color: Colors.redAccent,
+            decoration: BoxDecoration(
+              color: cs.error,
               shape: BoxShape.circle,
             ),
           ),
@@ -363,8 +471,8 @@ class VideoNoteController {
             valueListenable: _elapsedMs,
             builder: (context, ms, _) => Text(
               formatElapsed(ms),
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: cs.onSurface,
                 fontSize: 15,
                 fontFeatures: [ui.FontFeature.tabularFigures()],
               ),
@@ -376,12 +484,12 @@ class VideoNoteController {
             child: InkWell(
               borderRadius: BorderRadius.circular(20),
               onTap: () => stop(cancel: true),
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 child: Text(
                   'ОТМЕНА',
                   style: TextStyle(
-                    color: Colors.white70,
+                    color: cs.onSurface.withValues(alpha: 0.7),
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0.3,
@@ -392,14 +500,14 @@ class VideoNoteController {
           ),
           const SizedBox(width: 8),
           Material(
-            color: const Color(0xFFE5CF72), // Желтоватый цвет как на скрине
+            color: cs.primary,
             shape: const CircleBorder(),
             child: InkWell(
               customBorder: const CircleBorder(),
               onTap: () => stop(cancel: false),
-              child: const Padding(
-                padding: EdgeInsets.all(10),
-                child: Icon(Icons.send, color: Colors.black87, size: 20),
+              child: Padding(
+                padding: const EdgeInsets.all(10),
+                child: Icon(Symbols.send, color: cs.onPrimary, size: 20),
               ),
             ),
           ),
@@ -426,5 +534,7 @@ class VideoNoteController {
     _isFrontCamera.dispose();
     _locked.dispose();
     _lockDrag.dispose();
+    _torchOn.dispose();
+    _isPaused.dispose();
   }
 }
