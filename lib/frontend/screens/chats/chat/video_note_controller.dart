@@ -58,11 +58,17 @@ class VideoNoteController {
     if (_switchingCamera.value) return;
     _switchingCamera.value = true;
     try {
-      final ok = await _rec.switchCamera();
+      // Таймаут 3с чтобы не вешать UI если нативная сторона не отвечает
+      final ok = await _rec.switchCamera().timeout(
+        const Duration(seconds: 3),
+        onTimeout: () => false,
+      );
       if (ok) {
         _isFrontCamera.value = _rec.isFront;
         Haptics.tap();
       }
+    } catch (e) {
+      logger.w('switchCamera: $e');
     } finally {
       _switchingCamera.value = false;
     }
@@ -281,51 +287,68 @@ class VideoNoteController {
       builder: (context) {
         final texId = _textureId.value;
         final cs = Theme.of(context).colorScheme;
-        final screenWidth = MediaQuery.of(context).size.width;
+        final mq = MediaQuery.of(context);
+        final screenWidth = mq.size.width;
         final circleSize = screenWidth - 32.0;
         return Positioned.fill(
           child: Container(
             color: Colors.black.withValues(alpha: 0.55),
             child: SafeArea(
               child: Column(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.max,
+                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  const Spacer(),
-                  Stack(
-                    clipBehavior: Clip.none,
-                    alignment: Alignment.center,
-                    children: [
-                      ClipOval(
-                        child: SizedBox(
-                          width: circleSize,
-                          height: circleSize,
-                          child: texId != null
-                              ? Texture(textureId: texId)
-                              : Container(color: Colors.black),
-                        ),
-                      ),
-                      // Arc progress
-                      ValueListenableBuilder<int>(
-                        valueListenable: _elapsedMs,
-                        builder: (context, ms, _) {
-                          final progress = (ms / 60000).clamp(0.0, 1.0);
-                          return SizedBox(
-                            width: circleSize + 6,
-                            height: circleSize + 6,
-                            child: CircularProgressIndicator(
-                              value: progress,
-                              strokeWidth: 3,
-                              color: Colors.white,
-                              backgroundColor: Colors.white.withValues(alpha: 0.2),
+                  // Кружок занимает всё свободное пространство сверху
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.center,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        alignment: Alignment.center,
+                        children: [
+                          // Превью камеры
+                          ClipOval(
+                            child: SizedBox(
+                              width: circleSize,
+                              height: circleSize,
+                              child: texId != null
+                                  ? Texture(textureId: texId)
+                                  : Container(color: Colors.black),
                             ),
-                          );
-                        },
+                          ),
+                          // Arc progress
+                          ValueListenableBuilder<int>(
+                            valueListenable: _elapsedMs,
+                            builder: (context, ms, _) {
+                              final progress = (ms / 60000).clamp(0.0, 1.0);
+                              return SizedBox(
+                                width: circleSize + 6,
+                                height: circleSize + 6,
+                                child: CircularProgressIndicator(
+                                  value: progress,
+                                  strokeWidth: 3,
+                                  color: Colors.white,
+                                  backgroundColor:
+                                      Colors.white.withValues(alpha: 0.2),
+                                ),
+                              );
+                            },
+                          ),
+                        ],
                       ),
-                      // Segmented pill: flip | torch
-                      Positioned(
-                        top: 12,
-                        child: ValueListenableBuilder<bool>(
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Ряд: flip|torch pill слева  |  кнопка паузы справа
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Pill: flip | torch
+                        ValueListenableBuilder<bool>(
                           valueListenable: _switchingCamera,
                           builder: (context, switching, _) =>
                               ValueListenableBuilder<bool>(
@@ -334,39 +357,40 @@ class VideoNoteController {
                                 _buildPill(cs, switching, torchOn),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  // Pause button — above send, right-aligned
-                  Padding(
-                    padding: const EdgeInsets.only(right: 24),
-                    child: Align(
-                      alignment: Alignment.centerRight,
-                      child: ValueListenableBuilder<bool>(
-                        valueListenable: _isPaused,
-                        builder: (context, paused, _) => Material(
-                          color: cs.surfaceContainerHigh,
-                          shape: const CircleBorder(),
-                          child: InkWell(
-                            customBorder: const CircleBorder(),
-                            onTap: _togglePause,
-                            child: Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Icon(
-                                paused ? Symbols.play_arrow : Symbols.pause,
-                                color: cs.onSurface,
-                                size: 22,
+                        // Кнопка паузы — справа, ровно над кнопкой send
+                        ValueListenableBuilder<bool>(
+                          valueListenable: _isPaused,
+                          builder: (context, paused, _) => Material(
+                            color: cs.surfaceContainerHigh,
+                            shape: const CircleBorder(),
+                            child: InkWell(
+                              customBorder: const CircleBorder(),
+                              onTap: _togglePause,
+                              child: Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Icon(
+                                  paused
+                                      ? Symbols.play_arrow
+                                      : Symbols.pause,
+                                  color: cs.onSurface,
+                                  size: 22,
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ),
+                      ],
                     ),
                   ),
+
                   const SizedBox(height: 8),
-                  _buildActionBar(cs),
-                  const Spacer(),
+
+                  // Action bar: send | ОТМЕНА | таймер
+                  Padding(
+                    padding: const EdgeInsets.only(
+                        left: 16, right: 16, bottom: 16),
+                    child: _buildActionBar(cs),
+                  ),
                 ],
               ),
             ),
@@ -394,9 +418,11 @@ class VideoNoteController {
               // Flip
               InkWell(
                 onTap: switching ? null : switchCamera,
-                borderRadius: const BorderRadius.horizontal(left: Radius.circular(20)),
+                borderRadius: const BorderRadius.horizontal(
+                    left: Radius.circular(20)),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 10),
                   child: switching
                       ? SizedBox(
                           width: 18,
@@ -406,7 +432,8 @@ class VideoNoteController {
                             color: cs.onSurface,
                           ),
                         )
-                      : Icon(Symbols.flip_camera_ios, color: cs.onSurface, size: 20),
+                      : Icon(Symbols.flip_camera_ios,
+                          color: cs.onSurface, size: 20),
                 ),
               ),
               Container(
@@ -417,11 +444,15 @@ class VideoNoteController {
               // Torch
               InkWell(
                 onTap: toggleTorch,
-                borderRadius: const BorderRadius.horizontal(right: Radius.circular(20)),
+                borderRadius: const BorderRadius.horizontal(
+                    right: Radius.circular(20)),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 10),
                   child: Icon(
-                    torchOn ? Symbols.flashlight_on : Symbols.flashlight_off,
+                    torchOn
+                        ? Symbols.flashlight_on
+                        : Symbols.flashlight_off,
                     color: torchOn ? cs.primary : cs.onSurface,
                     size: 20,
                   ),
@@ -446,6 +477,8 @@ class VideoNoteController {
     Haptics.tap();
   }
 
+  /// Action bar: [send] [ОТМЕНА] [● таймер]
+  /// send слева, ОТМЕНА по центру, таймер справа — как в Telegram Beta.
   Widget _buildActionBar(ColorScheme cs) {
     return Container(
       constraints: const BoxConstraints(minWidth: 300),
@@ -458,34 +491,29 @@ class VideoNoteController {
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Container(
-            width: 8,
-            height: 8,
-            margin: const EdgeInsets.only(right: 8),
-            decoration: BoxDecoration(
-              color: cs.error,
-              shape: BoxShape.circle,
-            ),
-          ),
-          ValueListenableBuilder<int>(
-            valueListenable: _elapsedMs,
-            builder: (context, ms, _) => Text(
-              formatElapsed(ms),
-              style: TextStyle(
-                color: cs.onSurface,
-                fontSize: 15,
-                fontFeatures: [ui.FontFeature.tabularFigures()],
+          // Send — слева
+          Material(
+            color: cs.primary,
+            shape: const CircleBorder(),
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: () => stop(cancel: false),
+              child: Padding(
+                padding: const EdgeInsets.all(10),
+                child: Icon(Symbols.send, color: cs.onPrimary, size: 20),
               ),
             ),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 8),
+          // ОТМЕНА — по центру
           Material(
             color: Colors.transparent,
             child: InkWell(
               borderRadius: BorderRadius.circular(20),
               onTap: () => stop(cancel: true),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 10),
                 child: Text(
                   'ОТМЕНА',
                   style: TextStyle(
@@ -498,17 +526,27 @@ class VideoNoteController {
               ),
             ),
           ),
-          const SizedBox(width: 8),
-          Material(
-            color: cs.primary,
-            shape: const CircleBorder(),
-            child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: () => stop(cancel: false),
-              child: Padding(
-                padding: const EdgeInsets.all(10),
-                child: Icon(Symbols.send, color: cs.onPrimary, size: 20),
+          const SizedBox(width: 16),
+          // Таймер — справа
+          ValueListenableBuilder<int>(
+            valueListenable: _elapsedMs,
+            builder: (context, ms, _) => Text(
+              formatElapsed(ms),
+              style: TextStyle(
+                color: cs.onSurface,
+                fontSize: 15,
+                fontFeatures: [ui.FontFeature.tabularFigures()],
               ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          // Красная точка рядом с таймером
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: cs.error,
+              shape: BoxShape.circle,
             ),
           ),
         ],

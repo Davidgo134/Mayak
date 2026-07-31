@@ -79,6 +79,9 @@ class VideoNoteRecorder(
     @Volatile private var recording = false
     @Volatile private var glReady = false
 
+    // Torch state — управляется через CaptureRequest активной сессии
+    @Volatile private var torchEnabled = false
+
     private fun manager() =
         context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
 
@@ -282,11 +285,6 @@ class VideoNoteRecorder(
                     result.error("CAMERA_ERROR", "code $error", null)
                 }
 
-                // Вызывается, когда close() ДЕЙСТВИТЕЛЬНО завершил
-                // освобождение устройства на уровне HAL -- единственный
-                // надёжный, документированный сигнал для switchCamera(),
-                // что теперь можно безопасно открывать новую камеру без
-                // гонки "camera device already in use".
                 override fun onClosed(device: CameraDevice) {
                     pendingCloseCallback?.let {
                         pendingCloseCallback = null
@@ -389,6 +387,11 @@ class VideoNoteRecorder(
         if (!recording) {
             result.error("NOT_RECORDING", "no active recording", null); return
         }
+        // Сбрасываем фонарик при остановке
+        if (torchEnabled) {
+            torchEnabled = false
+            applyTorchToSession(false)
+        }
         recording = false
         glHandler!!.post {
             try {
@@ -409,6 +412,51 @@ class VideoNoteRecorder(
                 Log.e(tag, "stop failed", e)
                 result.error("STOP_FAILED", e.message, null)
             }
+        }
+    }
+
+    // Управление фонариком через CaptureRequest активной сессии.
+    // Это единственный корректный способ при открытой Camera2-сессии —
+    // CameraManager.setTorchMode() конфликтует с открытым CameraDevice
+    // и на большинстве устройств берёт не ту камеру (первую в списке,
+    // а не активную).
+    fun toggleTorch(on: Boolean, result: MethodChannel.Result) {
+        torchEnabled = on
+        camHandler?.post {
+            try {
+                applyTorchToSession(on)
+                result.success(null)
+            } catch (e: Exception) {
+                Log.w(tag, "toggleTorch: ${e.message}")
+                result.error("TORCH_ERROR", e.message, null)
+            }
+        }
+    }
+
+    private fun applyTorchToSession(on: Boolean) {
+        val device = cameraDevice ?: return
+        val s = session ?: return
+        val camSurface = camInputSurface ?: return
+        try {
+            val template = if (recording) {
+                CameraDevice.TEMPLATE_RECORD
+            } else {
+                CameraDevice.TEMPLATE_PREVIEW
+            }
+            val req = device.createCaptureRequest(template)
+            req.addTarget(camSurface)
+            if (recording) {
+                recorderSurface?.let { req.addTarget(it) }
+            }
+            fpsRange?.let { req.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, it) }
+            req.set(
+                CaptureRequest.FLASH_MODE,
+                if (on) CaptureRequest.FLASH_MODE_TORCH else CaptureRequest.FLASH_MODE_OFF,
+            )
+            s.setRepeatingRequest(req.build(), null, camHandler)
+            Log.i(tag, "torch set to $on")
+        } catch (e: Exception) {
+            Log.w(tag, "applyTorchToSession: ${e.message}")
         }
     }
 
@@ -441,6 +489,7 @@ class VideoNoteRecorder(
 
     fun dispose() {
         recording = false
+        torchEnabled = false
         try { session?.close() } catch (_: Exception) {}
         session = null
         glHandler?.post {
@@ -481,14 +530,10 @@ class VideoNoteRecorder(
             result.error("NO_CAMERA", "requested camera not found", null)
             return
         }
+        // Сбрасываем фонарик перед сменой камеры
+        torchEnabled = false
         val wasRecording = recording
 
-        // Watchdog остаётся как последний рубеж защиты от совершенно
-        // непредвиденных зависаний (например, если сама HAL никогда не
-        // вызовет ни onClosed(), ни onOpened(), ни onError() -- баг
-        // конкретного производителя чипа). В штатном режиме он никогда не
-        // должен сработать, потому что теперь мы не гадаем с задержками, а
-        // ждём настоящее событие о закрытии камеры.
         val watchdog = Runnable {
             if (switching) {
                 switching = false
@@ -504,8 +549,6 @@ class VideoNoteRecorder(
             val oldDevice = cameraDevice
             cameraDevice = null
 
-            // Ресайз буфера SurfaceTexture под новую камеру -- независимая
-            // GL-операция, не связанная с жизненным циклом CameraDevice.
             glHandler?.post {
                 try {
                     camTexture?.setDefaultBufferSize(camSize.width, camSize.height)
@@ -514,18 +557,6 @@ class VideoNoteRecorder(
                 }
             }
 
-            // Camera2 API документирует единственный надёжный способ узнать,
-            // что камера ДЕЙСТВИТЕЛЬНО освобождена HAL: дождаться onClosed()
-            // её собственного StateCallback. close() не блокирует и не
-            // гарантирует немедленное освобождение -- раньше мы либо звали
-            // openCamera() сразу (гонка "device already in use"), либо
-            // угадывали фиксированную задержку (150ms -- иногда мало,
-            // иногда с запасом), либо слепо перебирали retry с нарастающей
-            // паузой. Все эти варианты СИМПТОМАТИЧНЫ: они либо ловят гонку
-            // через раз, либо просто ждут "на всякий случай" дольше, чем
-            // нужно. Правильное решение -- подписаться на onClosed() того
-            // самого device, который мы закрываем, и открывать новую камеру
-            // из этого колбэка, детерминированно.
             if (oldDevice == null) {
                 cameraGeneration += 1
                 awaitingFirstFrameAfterSwitch = true
@@ -563,10 +594,6 @@ class VideoNoteRecorder(
         }
     }
 
-    // StateCallback старой камеры (см. selectCamera/openCamera) вызывает
-    // это поле из своего onClosed(), если оно установлено -- так
-    // switchCamera() детерминированно узнаёт о реальном освобождении камеры
-    // вместо угадывания задержки.
     @Volatile private var pendingCloseCallback: (() -> Unit)? = null
 
     private fun openCameraForSwitch(
@@ -673,13 +700,6 @@ class VideoNoteRecorder(
 
                     override fun onError(device: CameraDevice, error: Int) {
                         device.close(); cameraDevice = null
-                        // "Camera in use" (ERROR_CAMERA_IN_USE=4) означает,
-                        // что HAL всё ещё считает прошлую камеру занятой,
-                        // несмотря на то что мы дождались её onClosed() --
-                        // единственный оставшийся вариант это редкая гонка
-                        // на уровне драйвера, а не наша логика. Одна
-                        // короткая повторная попытка (без бесконечного
-                        // retry-цикла) покрывает этот редкий случай.
                         if (error == CameraDevice.StateCallback.ERROR_CAMERA_IN_USE) {
                             Log.w(tag, "switch open: camera in use, one retry in 250ms")
                             camHandler?.postDelayed({
@@ -690,10 +710,6 @@ class VideoNoteRecorder(
                         }
                     }
 
-                    // Тот же детерминированный механизм ожидания реального
-                    // закрытия устройства работает и для камеры, открытой
-                    // через switch -- следующий switchCamera() снова
-                    // дождётся именно этого onClosed(), а не гадает.
                     override fun onClosed(device: CameraDevice) {
                         pendingCloseCallback?.let {
                             pendingCloseCallback = null
@@ -721,12 +737,6 @@ class VideoNoteRecorder(
                 override fun onConfigured(s: CameraCaptureSession) = onReady(s)
                 override fun onConfigureFailed(s: CameraCaptureSession) {
                     Log.e(tag, "session config failed")
-                    // Раньше эта ошибка ТОЛЬКО логировалась и никак не
-                    // сообщалась вызывающему коду -- если конфигурация
-                    // сессии проваливалась (что случается, когда камера
-                    // ещё не до конца освободилась предыдущим владельцем),
-                    // весь вызов switchCamera/init просто зависал без
-                    // ответа Dart-стороне.
                     onFailed?.invoke()
                 }
             },
@@ -752,18 +762,14 @@ private class OnceResult(private val inner: MethodChannel.Result) : MethodChanne
 
 private class EglCore {
     val display: EGLDisplay
-    val displayConfig: EGLConfig // без recordable — семплируется Flutter-текстурой
-    val recordConfig: EGLConfig  // с recordable — для MediaRecorder-surface
+    val displayConfig: EGLConfig
+    val recordConfig: EGLConfig
     val eglContext: EGLContext
 
     init {
         display = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
         val ver = IntArray(2)
         EGL14.eglInitialize(display, ver, 0, ver, 1)
-        // Два конфига: превью (Flutter Texture) НЕ должно иметь
-        // EGL_RECORDABLE_ANDROID — иначе буферы получают video-encoder usage
-        // и не семплируются как картинка (чёрное превью). А encoder-surface
-        // MediaRecorder, наоборот, требует recordable.
         displayConfig = chooseConfig(false)
         recordConfig = chooseConfig(true)
         val ctxAttribs = intArrayOf(EGL14.EGL_CONTEXT_CLIENT_VERSION, 2, EGL14.EGL_NONE)
