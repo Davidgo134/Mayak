@@ -45,6 +45,15 @@ class NativeVideoNoteRecorder {
     }
   }
 
+  Future<void> toggleTorch(bool on) async {
+    if (!isAvailable) return;
+    try {
+      await _channel.invokeMethod('toggleTorch', {'on': on});
+    } catch (e) {
+      logger.w('NativeVideoNoteRecorder.toggleTorch: $e');
+    }
+  }
+
   Future<bool> start() async {
     if (!isAvailable) return false;
     try {
