@@ -17,13 +17,13 @@ import '../../small_spinner.dart';
 import '../../round_video_pip.dart';
 
 /// Round video message bubble, Telegram-Android style:
+/// - Circle fills the bubble column width (screen − 24 px margins).
 /// - Tap expands the circle in place (no separate fullscreen route).
-/// - A top bar appears above it: play/pause on the left, speed toggle
-///   and a close (X) button on the right. Close = fully stop & collapse.
-/// - Scrolling the bubble off-screen while playing hands the controller
-///   off to the global floating PiP mini player instead of stopping it.
-/// - Dragging along the ring edge scrubs; the thumb dot only shows while
-///   paused, matching Telegram's behavior.
+/// - A bottom-left pill (play/pause · speed · close) is shown via the
+///   global roundVideoPanelState notifier; it floats above the send button.
+/// - Scrubbing the ring edge works the same as before.
+/// - No opaque black circle overlay when expanded+paused — replaced by
+///   a theme-aware semi-transparent icon.
 class VideoNoteBubble extends StatefulWidget {
   final VideoAttachment attachment;
   final String messageId;
@@ -46,8 +46,9 @@ class VideoNoteBubble extends StatefulWidget {
 
 class _VideoNoteBubbleState extends State<VideoNoteBubble>
     with SingleTickerProviderStateMixin {
-  static const double _collapsedSize = 210;
-  static const double _expandedSize = 260;
+  /// Maximum circle diameter — keeps it from becoming a dinner plate on
+  /// very wide screens (tablets, landscape phones).
+  static const double _maxSize = 320;
 
   bool _expanded = false;
   bool _opening = false;
@@ -96,13 +97,6 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
     final c = _controller;
     if (c != null &&
         RoundVideoPipController.instance.state.value?.controller != c) {
-      // Bugfix: previously any dispose() (including the widget being
-      // scrolled off-screen while still playing) hard-stopped and disposed
-      // the controller, so the PiP hand-off in handOffToPip() was dead code
-      // -- it was never called from anywhere. Telegram's round video keeps
-      // playing in a floating mini player when the bubble leaves the
-      // viewport; we now detect that case here and hand off instead of
-      // destroying the controller.
       if (c.value.isInitialized && c.value.isPlaying) {
         RoundVideoPipController.instance.activate(
           PipData(
@@ -238,9 +232,6 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
     _publishPanelState();
   }
 
-  /// Close (X) button: fully stops playback and collapses back to the
-  /// small in-feed circle. No PiP is created — this is a hard stop,
-  /// distinct from scrolling away (which hands off to PiP).
   void _closeExpanded() {
     Haptics.tap();
     final c = _controller;
@@ -255,10 +246,6 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
     _publishPanelState();
   }
 
-  /// Hands the currently playing controller off to the global floating
-  /// PiP mini player (Telegram's PipRoundVideoView behavior) instead of
-  /// stopping it, e.g. when the bubble scrolls off-screen or the user
-  /// navigates to another screen while it's still playing.
   void handOffToPip() {
     final c = _controller;
     if (c == null || !c.value.isInitialized || !c.value.isPlaying) return;
@@ -272,15 +259,6 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
           c.dispose();
         },
         onExpand: (context) {
-          // Bugfix: this used to call clear() with the default
-          // disposeController: false, which detached the PipData without
-          // ever invoking onDisposeIfOwned. Since there is no bubble on
-          // screen to reclaim this controller (the original message may be
-          // scrolled far away or on a different chat), the VideoPlayerController
-          // was orphaned -- still decoding and holding native player/texture
-          // resources with nothing left to ever call .dispose() on it. Tapping
-          // the PiP bubble now stops playback and fully disposes it, same as
-          // the explicit close (X) button, until in-place restore is wired up.
           c.pause();
           RoundVideoPipController.instance.clear(disposeController: true);
         },
@@ -326,12 +304,6 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
     setState(() {
       _seekProgress = _angleToProgress(details.localPosition, size);
     });
-    // Live-scrub the actual player while dragging, like Telegram, but
-    // throttled: calling VideoPlayerController.seekTo() on every pixel of
-    // drag (up to 60x/sec) queues far more native seek calls than
-    // ExoPlayer/AVPlayer can keep up with, so the preview visibly lags
-    // behind the finger. Capping it to ~10 calls/sec keeps the scrub feeling
-    // live without saturating the native seek queue.
     final now = DateTime.now();
     if (now.difference(_lastLiveSeek).inMilliseconds < 100) return;
     _lastLiveSeek = now;
@@ -350,8 +322,7 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
         c.value.isInitialized &&
         c.value.duration.inMilliseconds > 0) {
       final target = Duration(
-        milliseconds: (c.value.duration.inMilliseconds * _seekProgress)
-            .round(),
+        milliseconds: (c.value.duration.inMilliseconds * _seekProgress).round(),
       );
       c.seekTo(target);
     }
@@ -431,244 +402,293 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
     final textColor = widget.textColor ?? widget.cs.onSurface;
     final c = _controller;
     final ready = c != null && c.value.isInitialized;
-    final size = _expanded ? _expandedSize : _collapsedSize;
 
-    double progress = 0;
-    if (ready && c.value.duration.inMilliseconds > 0) {
-      progress =
-          c.value.position.inMilliseconds / c.value.duration.inMilliseconds;
-    }
-    final shownProgress = _seeking ? _seekProgress : progress.clamp(0.0, 1.0);
-    final duration = ready ? c.value.duration : Duration.zero;
-    final elapsed = ready
-        ? (_seeking
-              ? Duration(
-                  milliseconds:
-                      (duration.inMilliseconds * _seekProgress).round(),
-                )
-              : c.value.position)
-        : Duration.zero;
+    // ── viewer size: fills bubble column width, capped at _maxSize ──────────
+    // The bubble lives inside a message column whose width is roughly
+    // screen-width minus 24 px (12 px margin each side). We read the
+    // available width from LayoutBuilder so it always stays correct even on
+    // tablets or in landscape. The ring GestureDetector gets 18 px extra on
+    // each side (36 px total) to comfortably handle edge-scrub touches.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availableWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : MediaQuery.of(context).size.width - 24.0;
+        final size = math.min(availableWidth, _maxSize);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 260),
-          curve: Curves.easeOutCubic,
-          width: size + (_expanded ? 36 : 0),
-          height: size + (_expanded ? 36 : 0),
-          child: Stack(
-            alignment: Alignment.center,
-            clipBehavior: Clip.none,
-            children: [
-              if (_expanded)
-                GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onPanStart: (d) => _onRingPanStart(d, size + 36),
-                  onPanUpdate: (d) => _onRingPanUpdate(d, size + 36),
-                  onPanEnd: _onRingPanEnd,
-                  child: SizedBox(
-                    width: size + 36,
-                    height: size + 36,
-                    child: CustomPaint(
-                      size: Size(size + 36, size + 36),
-                      painter: _RingPainter(
-                        progress: shownProgress,
-                        showThumb: ready && !c!.value.isPlaying,
+        double progress = 0;
+        if (ready && c.value.duration.inMilliseconds > 0) {
+          progress = c.value.position.inMilliseconds /
+              c.value.duration.inMilliseconds;
+        }
+        final shownProgress =
+            _seeking ? _seekProgress : progress.clamp(0.0, 1.0);
+        final duration = ready ? c.value.duration : Duration.zero;
+        final elapsed = ready
+            ? (_seeking
+                  ? Duration(
+                      milliseconds:
+                          (duration.inMilliseconds * _seekProgress).round(),
+                    )
+                  : c.value.position)
+            : Duration.zero;
+        final isPlaying = ready && c.value.isPlaying;
+
+        // Ring container: video circle + optional progress ring
+        final ringSize = size + (_expanded ? 36 : 0);
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 260),
+              curve: Curves.easeOutCubic,
+              width: ringSize,
+              height: ringSize,
+              child: Stack(
+                alignment: Alignment.center,
+                clipBehavior: Clip.none,
+                children: [
+                  // ── progress ring (expanded only) ─────────────────────────
+                  if (_expanded)
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onPanStart: (d) => _onRingPanStart(d, ringSize),
+                      onPanUpdate: (d) => _onRingPanUpdate(d, ringSize),
+                      onPanEnd: _onRingPanEnd,
+                      child: SizedBox(
+                        width: ringSize,
+                        height: ringSize,
+                        child: CustomPaint(
+                          size: Size(ringSize, ringSize),
+                          painter: _RingPainter(
+                            progress: shownProgress,
+                            showThumb: ready && !isPlaying,
+                            primaryColor: widget.cs.primary,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-              GestureDetector(
-                onTap: _toggleExpand,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 260),
-                  curve: Curves.easeOutCubic,
-                  width: size,
-                  height: size,
-                  child: ClipOval(
-                    child: SizedBox(
+
+                  // ── video circle ──────────────────────────────────────────
+                  GestureDetector(
+                    onTap: _toggleExpand,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 260),
+                      curve: Curves.easeOutCubic,
                       width: size,
                       height: size,
-                      child: ready
-                          ? FittedBox(
-                              fit: BoxFit.cover,
-                              clipBehavior: Clip.hardEdge,
-                              child: SizedBox(
-                                width: c!.value.size.width,
-                                height: c.value.size.height,
-                                child: VideoPlayer(c),
-                              ),
-                            )
-                          : (preview != null
-                                ? Image.memory(
-                                    preview,
-                                    fit: BoxFit.cover,
-                                    gaplessPlayback: true,
+                      child: ClipOval(
+                        child: SizedBox(
+                          width: size,
+                          height: size,
+                          child: ready
+                              ? FittedBox(
+                                  fit: BoxFit.cover,
+                                  clipBehavior: Clip.hardEdge,
+                                  child: SizedBox(
+                                    width: c!.value.size.width,
+                                    height: c.value.size.height,
+                                    child: VideoPlayer(c),
+                                  ),
+                                )
+                              : (preview != null
+                                    ? Image.memory(
+                                        preview,
+                                        fit: BoxFit.cover,
+                                        gaplessPlayback: true,
+                                      )
+                                    : Container(
+                                        color: widget
+                                            .cs.surfaceContainerHighest,
+                                      )),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // ── loading spinner ───────────────────────────────────────
+                  if (_opening)
+                    const IgnorePointer(
+                      child: SmallSpinner(size: 40, color: Colors.white),
+                    ),
+
+                  // ── error icon ────────────────────────────────────────────
+                  if (_error && !_opening)
+                    const IgnorePointer(
+                      child: Icon(
+                        Symbols.error,
+                        color: Colors.white54,
+                        size: 48,
+                      ),
+                    ),
+
+                  // ── collapsed play button (small semi-transparent) ────────
+                  // Only shown when NOT expanded and NOT loading.
+                  if (!_expanded && !_opening)
+                    IgnorePointer(
+                      child: Container(
+                        width: 52,
+                        height: 52,
+                        decoration: const BoxDecoration(
+                          color: Colors.black45,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Symbols.play_arrow,
+                          color: Colors.white,
+                          size: 30,
+                        ),
+                      ),
+                    ),
+
+                  // ── expanded pause indicator (no black circle) ────────────
+                  // Telegram shows nothing / a small dimmed icon when paused
+                  // inside the expanded circle — no opaque black filled circle.
+                  // We render a plain icon with a soft shadow only.
+                  if (_expanded && ready && !isPlaying)
+                    IgnorePointer(
+                      child: Icon(
+                        Symbols.play_circle,
+                        color: Colors.white.withValues(alpha: 0.75),
+                        size: size * 0.22,
+                        shadows: const [
+                          Shadow(
+                            color: Colors.black54,
+                            blurRadius: 8,
+                          ),
+                        ],
+                      ),
+                    ),
+
+                  // ── elapsed / duration labels ─────────────────────────────
+                  if (_expanded && ready)
+                    Positioned(
+                      bottom: 4,
+                      left: 8,
+                      child: Text(
+                        _formatTime(elapsed),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          shadows: [
+                            Shadow(color: Colors.black54, blurRadius: 4),
+                          ],
+                        ),
+                      ),
+                    ),
+                  if (_expanded && ready)
+                    Positioned(
+                      bottom: 4,
+                      right: 8,
+                      child: Text(
+                        _formatTime(duration),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          shadows: [
+                            Shadow(color: Colors.black54, blurRadius: 4),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                  // ── transcription button (collapsed only) ─────────────────
+                  if (!_expanded && widget.attachment.videoId != null)
+                    Positioned(
+                      right: 8,
+                      bottom: 8,
+                      child: GestureDetector(
+                        onTap: _requestTranscription,
+                        child: SizedBox(
+                          width: 28,
+                          height: 32,
+                          child: Center(
+                            child: _transcriptionLoading
+                                ? RotationTransition(
+                                    turns: _transcriptionIconAnim,
+                                    child: Icon(
+                                      Symbols.graphic_eq,
+                                      color: Colors.white
+                                          .withValues(alpha: 0.9),
+                                      size: 16,
+                                      shadows: const [
+                                        Shadow(
+                                          color: Colors.black54,
+                                          blurRadius: 4,
+                                        ),
+                                      ],
+                                    ),
                                   )
-                                : Container(
-                                    color: widget.cs.surfaceContainerHighest,
-                                  )),
+                                : Text(
+                                    'Т',
+                                    style: TextStyle(
+                                      color: _transcriptionVisible
+                                          ? widget.cs.primary
+                                          : Colors.white
+                                                .withValues(alpha: 0.9),
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                      shadows: const [
+                                        Shadow(
+                                          color: Colors.black54,
+                                          blurRadius: 4,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
+                ],
               ),
-              if (_opening)
-                const IgnorePointer(
-                  child: SmallSpinner(size: 40, color: Colors.white),
-                ),
-              if (_error && !_opening)
-                const IgnorePointer(
-                  child: Icon(Symbols.error, color: Colors.white54, size: 48),
-                ),
-              if (!_expanded && !_opening)
-                IgnorePointer(
-                  child: Container(
-                    width: 52,
-                    height: 52,
-                    decoration: const BoxDecoration(
-                      color: Colors.black45,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Symbols.play_arrow,
-                      color: Colors.white,
-                      size: 30,
-                    ),
-                  ),
-                ),
-              if (_expanded && ready && !c!.value.isPlaying)
-                IgnorePointer(
-                  child: Container(
-                    width: 64,
-                    height: 64,
-                    decoration: const BoxDecoration(
-                      color: Colors.black38,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Symbols.play_arrow,
-                      color: Colors.white,
-                      size: 34,
-                    ),
-                  ),
-                ),
-              if (_expanded && ready)
-                Positioned(
-                  bottom: 4,
-                  left: 8,
-                  child: Text(
-                    _formatTime(elapsed),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
-                    ),
-                  ),
-                ),
-              if (_expanded && ready)
-                Positioned(
-                  bottom: 4,
-                  right: 8,
-                  child: Text(
-                    _formatTime(duration),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
-                    ),
-                  ),
-                ),
-              if (!_expanded && widget.attachment.videoId != null)
-                Positioned(
-                  right: 8,
-                  bottom: 8,
-                  child: GestureDetector(
-                    onTap: _requestTranscription,
-                    child: SizedBox(
-                      width: 28,
-                      height: 32,
-                      child: Center(
-                        child: _transcriptionLoading
-                            ? RotationTransition(
-                                turns: _transcriptionIconAnim,
-                                child: Icon(
-                                  Symbols.graphic_eq,
-                                  color: Colors.white.withValues(alpha: 0.9),
-                                  size: 16,
-                                  shadows: const [
-                                    Shadow(
-                                      color: Colors.black54,
-                                      blurRadius: 4,
-                                    ),
-                                  ],
-                                ),
-                              )
-                            : Text(
-                                'Т',
-                                style: TextStyle(
-                                  color: _transcriptionVisible
-                                      ? widget.cs.primary
-                                      : Colors.white.withValues(alpha: 0.9),
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                  shadows: const [
-                                    Shadow(
-                                      color: Colors.black54,
-                                      blurRadius: 4,
-                                    ),
-                                  ],
-                                ),
-                              ),
+            ),
+
+            // ── transcription text panel ────────────────────────────────────
+            AnimatedSize(
+              duration: const Duration(milliseconds: 260),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.topLeft,
+              child: _transcriptionVisible
+                  ? Container(
+                      key: const ValueKey('transcription'),
+                      margin: const EdgeInsets.only(top: 8),
+                      width: size,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
                       ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-        AnimatedSize(
-          duration: const Duration(milliseconds: 260),
-          curve: Curves.easeOutCubic,
-          alignment: Alignment.topLeft,
-          child: _transcriptionVisible
-              ? Container(
-                  key: const ValueKey('transcription'),
-                  margin: const EdgeInsets.only(top: 8),
-                  width: _collapsedSize,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: widget.cs.surfaceContainerHighest.withValues(
-                      alpha: 0.6,
-                    ),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 200),
-                    child: Text(
-                      _transcriptionText ?? '',
-                      key: ValueKey(_transcriptionText),
-                      style: TextStyle(
-                        color: textColor.withValues(alpha: 0.85),
-                        fontSize: 13,
-                        height: 1.35,
+                      decoration: BoxDecoration(
+                        color: widget.cs.surfaceContainerHighest
+                            .withValues(alpha: 0.6),
+                        borderRadius: BorderRadius.circular(14),
                       ),
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 200),
+                        child: Text(
+                          _transcriptionText ?? '',
+                          key: ValueKey(_transcriptionText),
+                          style: TextStyle(
+                            color: textColor.withValues(alpha: 0.85),
+                            fontSize: 13,
+                            height: 1.35,
+                          ),
+                        ),
+                      ),
+                    )
+                  : SizedBox(
+                      key: const ValueKey('no-transcription'),
+                      width: size,
+                      height: 0,
                     ),
-                  ),
-                )
-              : const SizedBox(
-                  key: ValueKey('no-transcription'),
-                  width: _collapsedSize,
-                  height: 0,
-                ),
-        ),
-      ],
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -676,22 +696,29 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
 class _RingPainter extends CustomPainter {
   final double progress;
   final bool showThumb;
+  final Color primaryColor;
 
-  _RingPainter({required this.progress, required this.showThumb});
+  _RingPainter({
+    required this.progress,
+    required this.showThumb,
+    required this.primaryColor,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = size.width / 2 - 4;
 
+    // Track ring — theme-aware (semi-transparent primary)
     final trackPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.3)
+      ..color = primaryColor.withValues(alpha: 0.30)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3;
     canvas.drawCircle(center, radius, trackPaint);
 
+    // Progress arc — solid primary colour
     final progressPaint = Paint()
-      ..color = Colors.white
+      ..color = primaryColor
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3
       ..strokeCap = StrokeCap.round;
@@ -713,12 +740,14 @@ class _RingPainter extends CustomPainter {
         ..color = Colors.black.withValues(alpha: 0.35)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
       canvas.drawCircle(thumbCenter, 9, thumbShadowPaint);
-      final thumbPaint = Paint()..color = Colors.white;
+      final thumbPaint = Paint()..color = primaryColor;
       canvas.drawCircle(thumbCenter, 8, thumbPaint);
     }
   }
 
   @override
   bool shouldRepaint(covariant _RingPainter oldDelegate) =>
-      oldDelegate.progress != progress || oldDelegate.showThumb != showThumb;
+      oldDelegate.progress != progress ||
+      oldDelegate.showThumb != showThumb ||
+      oldDelegate.primaryColor != primaryColor;
 }
