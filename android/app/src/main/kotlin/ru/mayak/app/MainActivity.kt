@@ -6,7 +6,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.hardware.camera2.CameraManager
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -266,16 +265,8 @@ class MainActivity : FlutterActivity() {
                     ?: result.error("NOT_READY", "recorder not initialized", null)
                 "toggleTorch" -> {
                     val on = call.argument<Boolean>("on") ?: false
-                    try {
-                        val cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
-                        val cameraIdList = cameraManager.cameraIdList
-                        if (cameraIdList.isNotEmpty()) {
-                            cameraManager.setTorchMode(cameraIdList[0], on)
-                        }
-                        result.success(null)
-                    } catch (e: Exception) {
-                        result.error("TORCH_ERROR", e.message, null)
-                    }
+                    noteRecorder?.toggleTorch(on, result)
+                        ?: result.error("NOT_READY", "recorder not initialized", null)
                 }
                 "dispose" -> {
                     noteRecorder?.dispose()
