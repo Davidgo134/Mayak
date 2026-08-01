@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../../core/media/native_video_note_recorder.dart';
@@ -58,7 +59,6 @@ class VideoNoteController {
     if (_switchingCamera.value) return;
     _switchingCamera.value = true;
     try {
-      // Таймаут 3с чтобы не вешать UI если нативная сторона не отвечает
       final ok = await _rec.switchCamera().timeout(
         const Duration(seconds: 3),
         onTimeout: () => false,
@@ -289,16 +289,35 @@ class VideoNoteController {
         final cs = Theme.of(context).colorScheme;
         final mq = MediaQuery.of(context);
         final screenWidth = mq.size.width;
+        // viewPadding — реальные insets навигационной панели и статус-бара,
+        // не съедаются SafeArea (в отличие от mq.padding).
+        final topInset = mq.viewPadding.top;
+        final bottomInset = mq.viewPadding.bottom;
         final circleSize = screenWidth - 32.0;
-        return Positioned.fill(
-          child: Container(
-            color: Colors.black.withValues(alpha: 0.55),
-            child: SafeArea(
+
+        // Определяем яркость темы для корректного контраста иконок nav bar.
+        final isDark = cs.brightness == Brightness.dark;
+
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: SystemUiOverlayStyle(
+            systemNavigationBarColor: Colors.transparent,
+            systemNavigationBarDividerColor: Colors.transparent,
+            systemNavigationBarIconBrightness:
+                isDark ? Brightness.light : Brightness.dark,
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness: Brightness.light,
+          ),
+          child: Positioned.fill(
+            child: Container(
+              color: Colors.black.withValues(alpha: 0.55),
               child: Column(
                 mainAxisSize: MainAxisSize.max,
-                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  // Кружок занимает всё свободное пространство сверху
+                  // Отступ под статус-бар (не используем SafeArea чтобы
+                  // контролировать bottom вручную)
+                  SizedBox(height: topInset),
+
+                  // Кружок занимает всё свободное пространство
                   Expanded(
                     child: Align(
                       alignment: Alignment.center,
@@ -342,6 +361,7 @@ class VideoNoteController {
                   const SizedBox(height: 12),
 
                   // Ряд: flip|torch pill слева  |  кнопка паузы справа
+                  // Расположен прямо над action bar
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Row(
@@ -385,12 +405,9 @@ class VideoNoteController {
 
                   const SizedBox(height: 8),
 
-                  // Action bar: send | ОТМЕНА | таймер
-                  Padding(
-                    padding: const EdgeInsets.only(
-                        left: 16, right: 16, bottom: 16),
-                    child: _buildActionBar(cs),
-                  ),
+                  // Action bar: занимает полную ширину экрана,
+                  // прибит к navigation bar через bottomInset.
+                  _buildActionBar(cs, bottomInset),
                 ],
               ),
             ),
@@ -477,19 +494,24 @@ class VideoNoteController {
     Haptics.tap();
   }
 
-  /// Action bar: [send] [ОТМЕНА] [● таймер]
-  /// send слева, ОТМЕНА по центру, таймер справа — как в Telegram Beta.
-  Widget _buildActionBar(ColorScheme cs) {
+  /// Action bar — полная ширина, прибит к navigation bar.
+  /// [bottomInset] — mq.viewPadding.bottom (реальный nav bar inset).
+  Widget _buildActionBar(ColorScheme cs, double bottomInset) {
     return Container(
-      constraints: const BoxConstraints(minWidth: 300),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      width: double.infinity,
+      padding: EdgeInsets.only(
+        left: 8,
+        right: 8,
+        top: 6,
+        // Минимум 16px визуального отступа над nav bar,
+        // но если nav bar есть — опираемся на реальный inset.
+        bottom: bottomInset > 0 ? bottomInset + 4 : 16,
+      ),
       decoration: BoxDecoration(
         color: cs.surfaceContainerHighest.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(28),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisSize: MainAxisSize.max,
         children: [
           // Send — слева
           Material(
@@ -505,49 +527,57 @@ class VideoNoteController {
             ),
           ),
           const SizedBox(width: 8),
-          // ОТМЕНА — по центру
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(20),
-              onTap: () => stop(cancel: true),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 10),
-                child: Text(
-                  'ОТМЕНА',
-                  style: TextStyle(
-                    color: cs.onSurface.withValues(alpha: 0.7),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.3,
+          // ОТМЕНА — растягивается по центру
+          Expanded(
+            child: Center(
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(20),
+                  onTap: () => stop(cancel: true),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    child: Text(
+                      'ОТМЕНА',
+                      style: TextStyle(
+                        color: cs.onSurface.withValues(alpha: 0.7),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 16),
-          // Таймер — справа
-          ValueListenableBuilder<int>(
-            valueListenable: _elapsedMs,
-            builder: (context, ms, _) => Text(
-              formatElapsed(ms),
-              style: TextStyle(
-                color: cs.onSurface,
-                fontSize: 15,
-                fontFeatures: [ui.FontFeature.tabularFigures()],
+          const SizedBox(width: 8),
+          // Таймер + красная точка — справа
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: cs.error,
+                  shape: BoxShape.circle,
+                ),
               ),
-            ),
-          ),
-          const SizedBox(width: 6),
-          // Красная точка рядом с таймером
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: cs.error,
-              shape: BoxShape.circle,
-            ),
+              const SizedBox(width: 6),
+              ValueListenableBuilder<int>(
+                valueListenable: _elapsedMs,
+                builder: (context, ms, _) => Text(
+                  formatElapsed(ms),
+                  style: TextStyle(
+                    color: cs.onSurface,
+                    fontSize: 15,
+                    fontFeatures: [ui.FontFeature.tabularFigures()],
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -557,6 +587,8 @@ class VideoNoteController {
   void _hideOverlay() {
     _overlay?.remove();
     _overlay = null;
+    // Восстанавливаем стандартный стиль системных баров приложения.
+    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.dark);
   }
 
   void dispose() {
