@@ -54,10 +54,6 @@ class _RenderZeroIntrinsicWidth extends RenderProxyBox {
   double computeMaxIntrinsicWidth(double height) => 0;
 }
 
-/// A [Wrap] that reports its single-line width as the max intrinsic width, so an
-/// enclosing [IntrinsicWidth] grows the bubble to fit the chips on one line
-/// instead of collapsing to the widest single chip (which makes them stack).
-/// It still wraps to multiple lines when the available width is smaller.
 class _ReactionsWrap extends Wrap {
   const _ReactionsWrap({
     super.spacing,
@@ -117,8 +113,8 @@ class MessageBubble extends StatelessWidget {
 
   static Color bubbleTextColor(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark
-      ? Colors.white
-      : Colors.black;
+          ? Colors.white
+          : Colors.black;
 
   final CachedMessage message;
   final bool isMe;
@@ -256,16 +252,7 @@ class MessageBubble extends StatelessWidget {
     if (attachments != null && attachments.isNotEmpty) {
       final first = attachments.first;
       if (first is ForwardedMessageAttachment) {
-        final fwd = first;
-        final hasContact = fwd.originalContact != null;
-        final hasPhoto =
-            fwd.originalAttachments != null &&
-            fwd.originalAttachments!.any((a) => a is PhotoAttachment);
-        final hasOther =
-            fwd.originalAttachments != null &&
-            fwd.originalAttachments!.isNotEmpty;
-        if (hasContact || hasPhoto || hasOther) return MessageType.attachment;
-        return MessageType.text;
+        return MessageType.attachment;
       }
       if (first is ContactAttachment) return MessageType.attachment;
       if (first is UnknownAttachment) return MessageType.text;
@@ -492,10 +479,14 @@ class MessageBubble extends StatelessWidget {
         chatType == "CHAT" &&
         prevMessage?.senderId != message.senderId;
 
-    final maxBubbleWidth = math.min(MediaQuery.sizeOf(context).width * 0.75, 560.0);
+    final maxBubbleWidth = math.min(
+      MediaQuery.sizeOf(context).width * 0.75,
+      560.0,
+    );
     final keyboard = _inlineKeyboard;
     final isVideoNote = _isVideoNote;
-    final noBubbleBackground = isVideoNote || _isSticker || jumboAnimoji != null;
+    final noBubbleBackground =
+        isVideoNote || _isSticker || jumboAnimoji != null;
     final bubbleColor = noBubbleBackground
         ? Colors.transparent
         : (isMe ? cs.primaryContainer : cs.surfaceContainerHighest);
@@ -523,14 +514,15 @@ class MessageBubble extends StatelessWidget {
 
     final Widget bubbleContent =
         reactionsListenable != null && contentType == MessageType.text
-        ? ValueListenableBuilder<Map<String, dynamic>?>(
-            valueListenable: reactionsListenable!,
-            builder: (context, _, _) => _buildContent(makeCtx()),
-          )
-        : _buildContent(makeCtx());
+            ? ValueListenableBuilder<Map<String, dynamic>?>(
+                valueListenable: reactionsListenable!,
+                builder: (context, _, _) => _buildContent(makeCtx()),
+              )
+            : _buildContent(makeCtx());
 
     final reactionsUnder = _reactionsUnderBubble(contentType);
-    final reactionsInside = contentType != MessageType.text && !reactionsUnder;
+    final reactionsInside =
+        contentType != MessageType.text && !reactionsUnder;
 
     final reply = message.replyInfo;
     Widget withReply(Widget content) {
@@ -634,6 +626,81 @@ class MessageBubble extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildForwardedInlineText(
+    BubbleContext ctx,
+    ForwardedMessageAttachment forwarded,
+  ) {
+    final headerColor = ctx.dim;
+    final displaySender =
+        forwarded.originalSenderName ??
+        ContactCache.get(forwarded.originalSenderId) ??
+        forwarded.originalSenderId.toString();
+    final senderAvatar =
+        forwarded.originalSenderAvatar ??
+        ContactCache.getAvatar(forwarded.originalSenderId);
+    final origText = forwarded.originalText;
+    final hasOrigText = origText != null && origText.isNotEmpty;
+    final mainText = message.text;
+    final hasMainText = mainText != null && mainText.isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Symbols.forward, size: 14, color: headerColor),
+            const SizedBox(width: 4),
+            if (senderAvatar != null && senderAvatar.isNotEmpty)
+              CircleAvatar(
+                radius: 10,
+                backgroundImage: CachedNetworkImageProvider(
+                  senderAvatar,
+                  maxWidth: 96,
+                  maxHeight: 96,
+                ),
+                backgroundColor: ctx.cs.primaryContainer,
+              )
+            else
+              CircleAvatar(
+                radius: 10,
+                backgroundColor: ctx.cs.primaryContainer,
+                child: Text(
+                  displaySender.isNotEmpty
+                      ? displaySender[0].toUpperCase()
+                      : '?',
+                  style: TextStyle(
+                    fontSize: 9,
+                    color: ctx.cs.onPrimaryContainer,
+                  ),
+                ),
+              ),
+            const SizedBox(width: 6),
+            Text(
+              displaySender,
+              style: TextStyle(
+                color: headerColor,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+        if (hasOrigText) ...[
+          const SizedBox(height: 2),
+          Text(origText, style: TextStyle(color: ctx.text, fontSize: 14)),
+        ] else if (hasMainText) ...[
+          const SizedBox(height: 2),
+          Text(
+            mainText,
+            style: TextStyle(color: ctx.text, fontSize: 16, height: 1.3),
+          ),
+        ],
+      ],
     );
   }
 
@@ -768,9 +835,7 @@ class MessageBubble extends StatelessWidget {
       return;
     }
 
-    final deeplink = button.webApp != null
-        ? Uri.tryParse(button.webApp!)
-        : null;
+    final deeplink = button.webApp != null ? Uri.tryParse(button.webApp!) : null;
     final startParam =
         button.payload ??
         deeplink?.queryParameters['startapp'] ??
@@ -783,12 +848,6 @@ class MessageBubble extends StatelessWidget {
     if (botId == null) {
       showCustomNotification(context, 'Не удалось открыть приложение');
       return;
-    }
-
-    if (kDebugMode) {
-      debugPrint(
-        '[inline-kb] OPEN_APP botId=$botId chatId=$chatId startParam=$startParam',
-      );
     }
 
     Navigator.of(context).push(
@@ -1136,12 +1195,12 @@ class MessageBubble extends StatelessWidget {
     final baseTextWidget = isForwarded
         ? _buildForwardedInlineText(ctx, forwarded)
         : (FormattedMessageText.isFormatted(message.text, ranges)
-              ? FormattedMessageText(
-                  text: message.text!,
-                  ranges: ranges,
-                  style: textStyle,
-                )
-              : Text(message.text ?? '', style: textStyle));
+            ? FormattedMessageText(
+                text: message.text!,
+                ranges: ranges,
+                style: textStyle,
+              )
+            : Text(message.text ?? '', style: textStyle));
     final textWidget = _wrapSelectable(baseTextWidget);
 
     final metaWidget = Text(
@@ -1264,79 +1323,6 @@ class MessageBubble extends StatelessWidget {
       );
     }
     return quote;
-  }
-
-  Widget _buildForwardedInlineText(
-    BubbleContext ctx,
-    ForwardedMessageAttachment forwarded,
-  ) {
-    final headerColor = ctx.dim;
-    final displaySender =
-        forwarded.originalSenderName ??
-        ContactCache.get(forwarded.originalSenderId) ??
-        forwarded.originalSenderId.toString();
-    final senderAvatar =
-        forwarded.originalSenderAvatar ??
-        ContactCache.getAvatar(forwarded.originalSenderId);
-    final origText = forwarded.originalText;
-    final hasOrigText = origText != null && origText.isNotEmpty;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Symbols.forward, size: 14, color: headerColor),
-            const SizedBox(width: 4),
-            if (senderAvatar != null && senderAvatar.isNotEmpty)
-              CircleAvatar(
-                radius: 10,
-                backgroundImage: CachedNetworkImageProvider(
-                  senderAvatar,
-                  maxWidth: 96,
-                  maxHeight: 96,
-                ),
-                backgroundColor: ctx.cs.primaryContainer,
-              )
-            else
-              CircleAvatar(
-                radius: 10,
-                backgroundColor: ctx.cs.primaryContainer,
-                child: Text(
-                  displaySender.isNotEmpty
-                      ? displaySender[0].toUpperCase()
-                      : '?',
-                  style: TextStyle(
-                    fontSize: 9,
-                    color: ctx.cs.onPrimaryContainer,
-                  ),
-                ),
-              ),
-            const SizedBox(width: 6),
-            Text(
-              displaySender,
-              style: TextStyle(
-                color: headerColor,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-        if (hasOrigText) ...[
-          const SizedBox(height: 2),
-          Text(origText, style: TextStyle(color: ctx.text, fontSize: 14)),
-        ] else ...[
-          const SizedBox(height: 2),
-          Text(
-            message.text ?? '',
-            style: TextStyle(color: ctx.text, fontSize: 16, height: 1.3),
-          ),
-        ],
-      ],
-    );
   }
 
   ForwardedMessageAttachment? _getForwardedAttachment() {

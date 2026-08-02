@@ -77,9 +77,11 @@ class VideoNoteController {
   Future<void> toggleTorch() async {
     try {
       final newState = !_torchOn.value;
-      await _rec.toggleTorch(newState);
-      _torchOn.value = newState;
-      Haptics.tap();
+      final ok = await _rec.toggleTorch(newState);
+      if (ok) {
+        _torchOn.value = newState;
+        Haptics.tap();
+      }
     } catch (e) {
       logger.w('toggleTorch: $e');
     }
@@ -289,13 +291,9 @@ class VideoNoteController {
         final cs = Theme.of(context).colorScheme;
         final mq = MediaQuery.of(context);
         final screenWidth = mq.size.width;
-        // viewPadding — реальные insets навигационной панели и статус-бара,
-        // не съедаются SafeArea (в отличие от mq.padding).
         final topInset = mq.viewPadding.top;
         final bottomInset = mq.viewPadding.bottom;
         final circleSize = screenWidth - 32.0;
-
-        // Определяем яркость темы для корректного контраста иконок nav bar.
         final isDark = cs.brightness == Brightness.dark;
 
         return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -309,15 +307,11 @@ class VideoNoteController {
           ),
           child: Positioned.fill(
             child: Container(
-              color: Colors.black.withValues(alpha: 0.55),
+              color: cs.surface.withValues(alpha: 0.85),
               child: Column(
                 mainAxisSize: MainAxisSize.max,
                 children: [
-                  // Отступ под статус-бар (не используем SafeArea чтобы
-                  // контролировать bottom вручную)
                   SizedBox(height: topInset),
-
-                  // Кружок занимает всё свободное пространство
                   Expanded(
                     child: Align(
                       alignment: Alignment.center,
@@ -325,17 +319,15 @@ class VideoNoteController {
                         clipBehavior: Clip.none,
                         alignment: Alignment.center,
                         children: [
-                          // Превью камеры
                           ClipOval(
                             child: SizedBox(
                               width: circleSize,
                               height: circleSize,
                               child: texId != null
                                   ? Texture(textureId: texId)
-                                  : Container(color: Colors.black),
+                                  : Container(color: cs.surfaceContainerHighest),
                             ),
                           ),
-                          // Arc progress
                           ValueListenableBuilder<int>(
                             valueListenable: _elapsedMs,
                             builder: (context, ms, _) {
@@ -346,9 +338,8 @@ class VideoNoteController {
                                 child: CircularProgressIndicator(
                                   value: progress,
                                   strokeWidth: 3,
-                                  color: Colors.white,
-                                  backgroundColor:
-                                      Colors.white.withValues(alpha: 0.2),
+                                  color: cs.primary,
+                                  backgroundColor: cs.primary.withValues(alpha: 0.2),
                                 ),
                               );
                             },
@@ -360,14 +351,11 @@ class VideoNoteController {
 
                   const SizedBox(height: 12),
 
-                  // Ряд: flip|torch pill слева  |  кнопка паузы справа
-                  // Расположен прямо над action bar
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        // Pill: flip | torch
                         ValueListenableBuilder<bool>(
                           valueListenable: _switchingCamera,
                           builder: (context, switching, _) =>
@@ -377,7 +365,6 @@ class VideoNoteController {
                                 _buildPill(cs, switching, torchOn),
                           ),
                         ),
-                        // Кнопка паузы — справа, ровно над кнопкой send
                         ValueListenableBuilder<bool>(
                           valueListenable: _isPaused,
                           builder: (context, paused, _) => Material(
@@ -404,9 +391,6 @@ class VideoNoteController {
                   ),
 
                   const SizedBox(height: 8),
-
-                  // Action bar: занимает полную ширину экрана,
-                  // прибит к navigation bar через bottomInset.
                   _buildActionBar(cs, bottomInset),
                 ],
               ),
@@ -426,13 +410,12 @@ class VideoNoteController {
         filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
         child: Container(
           decoration: BoxDecoration(
-            color: cs.surface.withValues(alpha: 0.35),
+            color: cs.surfaceContainerHigh.withValues(alpha: 0.85),
             borderRadius: BorderRadius.circular(20),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Flip
               InkWell(
                 onTap: switching ? null : switchCamera,
                 borderRadius: const BorderRadius.horizontal(
@@ -458,7 +441,6 @@ class VideoNoteController {
                 height: 28,
                 color: cs.outline.withValues(alpha: 0.4),
               ),
-              // Torch
               InkWell(
                 onTap: toggleTorch,
                 borderRadius: const BorderRadius.horizontal(
@@ -494,8 +476,6 @@ class VideoNoteController {
     Haptics.tap();
   }
 
-  /// Action bar — полная ширина, прибит к navigation bar.
-  /// [bottomInset] — mq.viewPadding.bottom (реальный nav bar inset).
   Widget _buildActionBar(ColorScheme cs, double bottomInset) {
     return Container(
       width: double.infinity,
@@ -503,17 +483,14 @@ class VideoNoteController {
         left: 8,
         right: 8,
         top: 6,
-        // Минимум 16px визуального отступа над nav bar,
-        // но если nav bar есть — опираемся на реальный inset.
         bottom: bottomInset > 0 ? bottomInset + 4 : 16,
       ),
       decoration: BoxDecoration(
-        color: cs.surfaceContainerHighest.withValues(alpha: 0.92),
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.95),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.max,
         children: [
-          // Send — слева
           Material(
             color: cs.primary,
             shape: const CircleBorder(),
@@ -527,7 +504,6 @@ class VideoNoteController {
             ),
           ),
           const SizedBox(width: 8),
-          // ОТМЕНА — растягивается по центру
           Expanded(
             child: Center(
               child: Material(
@@ -553,7 +529,6 @@ class VideoNoteController {
             ),
           ),
           const SizedBox(width: 8),
-          // Таймер + красная точка — справа
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -587,7 +562,6 @@ class VideoNoteController {
   void _hideOverlay() {
     _overlay?.remove();
     _overlay = null;
-    // Восстанавливаем стандартный стиль системных баров приложения.
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.dark);
   }
 

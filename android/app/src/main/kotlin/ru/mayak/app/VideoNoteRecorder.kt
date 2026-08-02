@@ -33,11 +33,6 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
 
-// Нативная запись видео-кружка через GL-конвейер: камера выдаёт стандартный
-// кадр в SurfaceTexture (OES), шейдер кропает по центру в квадрат и рендерит
-// одновременно в превью (Flutter Texture) и в MediaRecorder (480×480, H.264,
-// framework MediaMuxer). Так делает официальный клиент через CameraX — выход
-// проходит серверный валидатор (media3-перекод его НЕ проходит).
 class VideoNoteRecorder(
     private val context: Context,
     private val textureRegistry: TextureRegistry,
@@ -51,6 +46,7 @@ class VideoNoteRecorder(
     private var lensFacing = CameraCharacteristics.LENS_FACING_FRONT
     private var sensorOrientation = 270
     private var camSize = Size(1280, 720)
+    private var hasFlashHardware = false
 
     private var cameraDevice: CameraDevice? = null
     private var session: CameraCaptureSession? = null
@@ -66,7 +62,6 @@ class VideoNoteRecorder(
     private var previewSurface: Surface? = null
     private var recorderSurface: Surface? = null
 
-    // GL state (живёт на glThread)
     private var egl: EglCore? = null
     private var previewWindow: WindowSurface? = null
     private var recordWindow: WindowSurface? = null
@@ -78,9 +73,8 @@ class VideoNoteRecorder(
 
     @Volatile private var recording = false
     @Volatile private var glReady = false
-
-    // Torch state — управляется через CaptureRequest активной сессии
     @Volatile private var torchEnabled = false
+    @Volatile private var switching = false
 
     private fun manager() =
         context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
@@ -94,30 +88,19 @@ class VideoNoteRecorder(
             if (ch.get(CameraCharacteristics.LENS_FACING) == facing) {
                 cameraId = id
                 lensFacing = facing
-                sensorOrientation =
-                    ch.get(CameraCharacteristics.SENSOR_ORIENTATION) ?: 270
-                val map = ch.get(
-                    CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP,
-                )
+                sensorOrientation = ch.get(CameraCharacteristics.SENSOR_ORIENTATION) ?: 270
+                hasFlashHardware = ch.get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
+                val map = ch.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
                 camSize = pickCamSize(map)
 
-                val ranges = ch.get(
-                    CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES,
-                )
-                Log.i(
-                    tag,
-                    "FPS_DIAG camera=$id facing=$facing available_fps_ranges=" +
-                        (ranges?.joinToString { "[${it.lower}-${it.upper}]" } ?: "none"),
-                )
+                val ranges = ch.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
                 fpsRange = ranges?.maxByOrNull { it.upper }
-                Log.i(tag, "FPS_DIAG selected fpsRange=$fpsRange")
                 return true
             }
         }
         return false
     }
 
-    // Поддерживаемый камерой размер вывода (для SurfaceTexture), близкий к 720p.
     private fun pickCamSize(map: StreamConfigurationMap?): Size {
         val sizes = map?.getOutputSizes(SurfaceTexture::class.java)
             ?: return Size(1280, 720)
@@ -150,9 +133,7 @@ class VideoNoteRecorder(
             } else {
                 CameraCharacteristics.LENS_FACING_BACK
             }
-            if (!selectCamera(facing) &&
-                !selectCamera(CameraCharacteristics.LENS_FACING_BACK)
-            ) {
+            if (!selectCamera(facing) && !selectCamera(CameraCharacteristics.LENS_FACING_BACK)) {
                 result.error("NO_CAMERA", "no camera found", null)
                 return
             }
@@ -182,7 +163,6 @@ class VideoNoteRecorder(
         }
     }
 
-    // === GL (на glThread) ===
     private fun setupGl() {
         val core = EglCore()
         egl = core
@@ -195,41 +175,9 @@ class VideoNoteRecorder(
         st.setOnFrameAvailableListener({ onFrame() }, glHandler)
         camTexture = st
         camInputSurface = Surface(st)
-        Log.i(tag, "GL setup ok cam=$camSize")
     }
 
-    private var frameCount = 0
-    private var lastFrameNs = 0L
-    private var fpsWindowStartNs = 0L
-    private var fpsWindowFrames = 0
-    @Volatile private var cameraGeneration = 0
-    @Volatile private var awaitingFirstFrameAfterSwitch = false
-
     private fun onFrame() {
-        val nowNs = System.nanoTime()
-        if (lastFrameNs != 0L) {
-            val deltaMs = (nowNs - lastFrameNs) / 1_000_000.0
-            fpsWindowFrames++
-            if (fpsWindowStartNs == 0L) fpsWindowStartNs = nowNs
-            val windowMs = (nowNs - fpsWindowStartNs) / 1_000_000.0
-            if (windowMs >= 1000.0) {
-                val realFps = fpsWindowFrames * 1000.0 / windowMs
-                Log.i(
-                    tag,
-                    "FPS_DIAG real_fps=${"%.1f".format(realFps)} " +
-                        "last_frame_delta_ms=${"%.1f".format(deltaMs)} " +
-                        "target_range=$fpsRange cam_size=$camSize",
-                )
-                fpsWindowFrames = 0
-                fpsWindowStartNs = nowNs
-            }
-        }
-        lastFrameNs = nowNs
-        if (awaitingFirstFrameAfterSwitch) {
-            awaitingFirstFrameAfterSwitch = false
-            Log.i(tag, "switch first frame arrived generation=$cameraGeneration")
-        }
-
         val st = camTexture ?: return
         val prog = program ?: return
         val w = previewWindow ?: return
@@ -238,29 +186,19 @@ class VideoNoteRecorder(
             st.updateTexImage()
             st.getTransformMatrix(stMatrix)
         } catch (e: Exception) {
-            Log.w(tag, "onFrame update: ${e.message}")
             return
         }
-        run {
-            GLES20.glViewport(0, 0, edge, edge)
-            prog.draw(oesTexId, stMatrix, camSize, lensFacing, true)
-            w.swap()
-        }
-        if (frameCount == 0) {
-            Log.i(
-                tag,
-                "first frame cam=$camSize orient=$sensorOrientation " +
-                    "facing=$lensFacing st=[${stMatrix.joinToString(",") { "%.2f".format(it) }}]",
-            )
-        }
-        frameCount++
+        GLES20.glViewport(0, 0, edge, edge)
+        prog.draw(oesTexId, stMatrix, camSize, lensFacing, true)
+        w.swap()
+
         if (recording) {
-            recordWindow?.let { w ->
-                w.makeCurrent()
+            recordWindow?.let { recWindow ->
+                recWindow.makeCurrent()
                 GLES20.glViewport(0, 0, edge, edge)
                 prog.draw(oesTexId, stMatrix, camSize, lensFacing, false)
-                w.setPresentationTime(System.nanoTime())
-                w.swap()
+                recWindow.setPresentationTime(System.nanoTime())
+                recWindow.swap()
             }
         }
     }
@@ -271,25 +209,19 @@ class VideoNoteRecorder(
             cameraId,
             object : CameraDevice.StateCallback() {
                 override fun onOpened(device: CameraDevice) {
-                    Log.i(tag, "camera opened $cameraId")
                     cameraDevice = device
                     startPreviewSession(result, textureId)
                 }
 
                 override fun onDisconnected(device: CameraDevice) {
-                    device.close(); cameraDevice = null
+                    device.close()
+                    cameraDevice = null
                 }
 
                 override fun onError(device: CameraDevice, error: Int) {
-                    device.close(); cameraDevice = null
+                    device.close()
+                    cameraDevice = null
                     result.error("CAMERA_ERROR", "code $error", null)
-                }
-
-                override fun onClosed(device: CameraDevice) {
-                    pendingCloseCallback?.let {
-                        pendingCloseCallback = null
-                        it()
-                    }
                 }
             },
             camHandler,
@@ -306,20 +238,19 @@ class VideoNoteRecorder(
                     session = s
                     val req = device.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
                     req.addTarget(camSurface)
-                    fpsRange?.let {
-                        req.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, it)
-                        Log.i(tag, "FPS_DIAG applied preview fpsRange=$it")
-                    }
+                    fpsRange?.let { req.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, it) }
                     s.setRepeatingRequest(req.build(), null, camHandler)
-                    Log.i(tag, "preview session configured")
-                    result.success(mapOf("textureId" to textureId, "size" to edge))
+                    result.success(mapOf(
+                        "textureId" to textureId,
+                        "size" to edge,
+                        "hasTorch" to (hasFlashHardware && lensFacing == CameraCharacteristics.LENS_FACING_BACK)
+                    ))
                 },
                 onFailed = {
                     result.error("PREVIEW_FAILED", "session config failed", null)
                 },
             )
         } catch (e: Exception) {
-            Log.e(tag, "preview session failed", e)
             result.error("PREVIEW_FAILED", e.message, null)
         }
     }
@@ -341,16 +272,6 @@ class VideoNoteRecorder(
         rec.setAudioChannels(1)
         rec.setAudioSamplingRate(48000)
         rec.setAudioEncodingBitRate(96000)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            try {
-                rec.setVideoEncodingProfileLevel(
-                    android.media.MediaCodecInfo.CodecProfileLevel.AVCProfileHigh,
-                    android.media.MediaCodecInfo.CodecProfileLevel.AVCLevel3,
-                )
-            } catch (e: Exception) {
-                Log.w(tag, "profile level: ${e.message}")
-            }
-        }
         rec.setOutputFile(path)
         rec.prepare()
         recorder = rec
@@ -373,12 +294,10 @@ class VideoNoteRecorder(
                     recording = true
                     result.success(null)
                 } catch (e: Exception) {
-                    Log.e(tag, "record window failed", e)
                     result.error("START_FAILED", e.message, null)
                 }
             }
         } catch (e: Exception) {
-            Log.e(tag, "start failed", e)
             result.error("START_FAILED", e.message, null)
         }
     }
@@ -387,7 +306,6 @@ class VideoNoteRecorder(
         if (!recording) {
             result.error("NOT_RECORDING", "no active recording", null); return
         }
-        // Сбрасываем фонарик при остановке
         if (torchEnabled) {
             torchEnabled = false
             applyTorchToSession(false)
@@ -399,37 +317,29 @@ class VideoNoteRecorder(
                 recordWindow = null
             } catch (_: Exception) {}
             try {
-                try {
-                    recorder?.stop()
-                } catch (e: Exception) {
-                    Log.w(tag, "recorder.stop: ${e.message}")
-                }
-                recorder?.reset(); recorder?.release(); recorder = null
-                recorderSurface = null
-                outputPath?.let { stripVideoEditList(it) }
-                result.success(outputPath)
+                recorder?.stop()
             } catch (e: Exception) {
-                Log.e(tag, "stop failed", e)
-                result.error("STOP_FAILED", e.message, null)
+                Log.w(tag, "recorder.stop: ${e.message}")
             }
+            recorder?.reset()
+            recorder?.release()
+            recorder = null
+            recorderSurface = null
+            outputPath?.let { stripVideoEditList(it) }
+            result.success(outputPath)
         }
     }
 
-    // Управление фонариком через CaptureRequest активной сессии.
-    // Это единственный корректный способ при открытой Camera2-сессии —
-    // CameraManager.setTorchMode() конфликтует с открытым CameraDevice
-    // и на большинстве устройств берёт не ту камеру (первую в списке,
-    // а не активную).
     fun toggleTorch(on: Boolean, result: MethodChannel.Result) {
+        if (!hasFlashHardware || lensFacing != CameraCharacteristics.LENS_FACING_BACK) {
+            torchEnabled = false
+            result.success(false)
+            return
+        }
         torchEnabled = on
         camHandler?.post {
-            try {
-                applyTorchToSession(on)
-                result.success(null)
-            } catch (e: Exception) {
-                Log.w(tag, "toggleTorch: ${e.message}")
-                result.error("TORCH_ERROR", e.message, null)
-            }
+            applyTorchToSession(on)
+            result.success(on)
         }
     }
 
@@ -438,38 +348,32 @@ class VideoNoteRecorder(
         val s = session ?: return
         val camSurface = camInputSurface ?: return
         try {
-            val template = if (recording) {
-                CameraDevice.TEMPLATE_RECORD
-            } else {
-                CameraDevice.TEMPLATE_PREVIEW
-            }
+            val template = if (recording) CameraDevice.TEMPLATE_RECORD else CameraDevice.TEMPLATE_PREVIEW
             val req = device.createCaptureRequest(template)
             req.addTarget(camSurface)
             if (recording) {
                 recorderSurface?.let { req.addTarget(it) }
             }
             fpsRange?.let { req.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, it) }
-            req.set(
-                CaptureRequest.FLASH_MODE,
-                if (on) CaptureRequest.FLASH_MODE_TORCH else CaptureRequest.FLASH_MODE_OFF,
-            )
+            if (on) {
+                req.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
+                req.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_TORCH)
+            } else {
+                req.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_OFF)
+            }
             s.setRepeatingRequest(req.build(), null, camHandler)
-            Log.i(tag, "torch set to $on")
         } catch (e: Exception) {
             Log.w(tag, "applyTorchToSession: ${e.message}")
         }
     }
 
-    // MediaRecorder добавляет на видео-трек edit list (edts/elst) из-за
-    // B-кадров — серверный валидатор такие файлы отвергает (у клиента видео без
-    // edit list). Переименовываем бокс edts→free (тот же размер, ничего не
-    // сдвигается, парсеры пропускают free) — edit list исчезает без перекода.
     private fun stripVideoEditList(path: String) {
         try {
             val f = java.io.RandomAccessFile(path, "rw")
             val scan = minOf(f.length(), 65536L).toInt()
             val buf = ByteArray(scan)
-            f.seek(0); f.readFully(buf)
+            f.seek(0)
+            f.readFully(buf)
             var i = 0
             while (i + 8 <= scan) {
                 if (buf[i] == 0x65.toByte() && buf[i + 1] == 0x64.toByte() &&
@@ -477,14 +381,127 @@ class VideoNoteRecorder(
                 ) {
                     f.seek(i.toLong())
                     f.write(byteArrayOf(0x66, 0x72, 0x65, 0x65))
-                    Log.i(tag, "stripped video edit list at $i")
                 }
                 i++
             }
             f.close()
-        } catch (e: Exception) {
-            Log.w(tag, "stripEditList: ${e.message}")
+        } catch (_: Exception) {}
+    }
+
+    fun switchCamera(rawResult: MethodChannel.Result) {
+        val result = OnceResult(rawResult)
+        if (switching) {
+            result.error("SWITCH_BUSY", "switch in progress", null)
+            return
         }
+        switching = true
+        torchEnabled = false
+
+        val newFacing = if (lensFacing == CameraCharacteristics.LENS_FACING_FRONT) {
+            CameraCharacteristics.LENS_FACING_BACK
+        } else {
+            CameraCharacteristics.LENS_FACING_FRONT
+        }
+
+        if (!selectCamera(newFacing)) {
+            switching = false
+            result.error("NO_CAMERA", "requested camera not found", null)
+            return
+        }
+
+        camHandler?.post {
+            try {
+                session?.close()
+                session = null
+                cameraDevice?.close()
+                cameraDevice = null
+            } catch (_: Exception) {}
+
+            openCameraForSwitchAttempt(
+                onSuccess = { payload ->
+                    switching = false
+                    result.success(payload)
+                },
+                onError = { code, msg ->
+                    switching = false
+                    result.error(code, msg, null)
+                }
+            )
+        }
+    }
+
+    @Suppress("MissingPermission")
+    private fun openCameraForSwitchAttempt(
+        onSuccess: (Map<String, Any?>) -> Unit,
+        onError: (String, String?) -> Unit,
+    ) {
+        try {
+            manager().openCamera(
+                cameraId,
+                object : CameraDevice.StateCallback() {
+                    override fun onOpened(device: CameraDevice) {
+                        cameraDevice = device
+                        val camSurface = camInputSurface ?: return
+                        val surfaces = if (recording && recorderSurface != null) {
+                            listOf(camSurface, recorderSurface!!)
+                        } else {
+                            listOf(camSurface)
+                        }
+                        createSession(
+                            surfaces,
+                            onReady = { s ->
+                                session = s
+                                val req = device.createCaptureRequest(
+                                    if (recording) CameraDevice.TEMPLATE_RECORD else CameraDevice.TEMPLATE_PREVIEW
+                                )
+                                req.addTarget(camSurface)
+                                if (recording && recorderSurface != null) {
+                                    req.addTarget(recorderSurface!!)
+                                }
+                                fpsRange?.let { req.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, it) }
+                                s.setRepeatingRequest(req.build(), null, camHandler)
+                                onSuccess(mapOf(
+                                    "isFront" to (lensFacing == CameraCharacteristics.LENS_FACING_FRONT),
+                                    "hasTorch" to (hasFlashHardware && lensFacing == CameraCharacteristics.LENS_FACING_BACK)
+                                ))
+                            },
+                            onFailed = { onError("SWITCH_FAILED", "session failed") }
+                        )
+                    }
+
+                    override fun onDisconnected(device: CameraDevice) {
+                        device.close(); cameraDevice = null
+                        onError("DISCONNECTED", "camera disconnected")
+                    }
+
+                    override fun onError(device: CameraDevice, error: Int) {
+                        device.close(); cameraDevice = null
+                        onError("CAMERA_ERROR", "code $error")
+                    }
+                },
+                camHandler
+            )
+        } catch (e: Exception) {
+            onError("SWITCH_FAILED", e.message)
+        }
+    }
+
+    private fun createSession(
+        surfaces: List<Surface>,
+        onReady: (CameraCaptureSession) -> Unit,
+        onFailed: (() -> Unit)? = null,
+    ) {
+        val device = cameraDevice ?: return
+        device.createCaptureSession(
+            surfaces,
+            object : CameraCaptureSession.StateCallback() {
+                override fun onConfigured(s: CameraCaptureSession) = onReady(s)
+                override fun onConfigureFailed(s: CameraCaptureSession) {
+                    onFailed?.invoke()
+                }
+            },
+            camHandler,
+        )
     }
 
     fun dispose() {
@@ -508,241 +525,6 @@ class VideoNoteRecorder(
         glThread?.quitSafely(); glThread = null; glHandler = null
         camThread?.quitSafely(); camThread = null; camHandler = null
     }
-
-
-    @Volatile private var switching = false
-
-    fun switchCamera(rawResult: MethodChannel.Result) {
-        val result = OnceResult(rawResult)
-        if (switching) {
-            result.error("SWITCH_BUSY", "switch already in progress", null)
-            return
-        }
-        switching = true
-
-        val newFacing = if (lensFacing == CameraCharacteristics.LENS_FACING_FRONT) {
-            CameraCharacteristics.LENS_FACING_BACK
-        } else {
-            CameraCharacteristics.LENS_FACING_FRONT
-        }
-        if (!selectCamera(newFacing)) {
-            switching = false
-            result.error("NO_CAMERA", "requested camera not found", null)
-            return
-        }
-        // Сбрасываем фонарик перед сменой камеры
-        torchEnabled = false
-        val wasRecording = recording
-
-        val watchdog = Runnable {
-            if (switching) {
-                switching = false
-                Log.e(tag, "switchCamera watchdog fired -- forcing failure")
-                result.error("SWITCH_TIMEOUT", "camera switch timed out", null)
-            }
-        }
-        camHandler?.postDelayed(watchdog, 4000)
-
-        camHandler?.post {
-            val oldSession = session
-            session = null
-            val oldDevice = cameraDevice
-            cameraDevice = null
-
-            glHandler?.post {
-                try {
-                    camTexture?.setDefaultBufferSize(camSize.width, camSize.height)
-                } catch (e: Exception) {
-                    Log.w(tag, "switchCamera buffer resize: ${e.message}")
-                }
-            }
-
-            if (oldDevice == null) {
-                cameraGeneration += 1
-                awaitingFirstFrameAfterSwitch = true
-                openCameraForSwitch(result, wasRecording, watchdog)
-                return@post
-            }
-
-            var closedHandled = false
-            val nextGeneration = cameraGeneration + 1
-            val onOldDeviceClosed: () -> Unit = {
-                if (!closedHandled) {
-                    closedHandled = true
-                    cameraGeneration = nextGeneration
-                    awaitingFirstFrameAfterSwitch = true
-                    frameCount = 0
-                    lastFrameNs = 0L
-                    fpsWindowStartNs = 0L
-                    fpsWindowFrames = 0
-                    Log.i(tag, "switch old camera fully closed; opening generation=$cameraGeneration")
-                    openCameraForSwitch(result, wasRecording, watchdog)
-                }
-            }
-
-            pendingCloseCallback = onOldDeviceClosed
-            try {
-                oldSession?.close()
-            } catch (_: Exception) {}
-
-            try {
-                oldDevice.close()
-            } catch (_: Exception) {
-                pendingCloseCallback = null
-                onOldDeviceClosed()
-            }
-        }
-    }
-
-    @Volatile private var pendingCloseCallback: (() -> Unit)? = null
-
-    private fun openCameraForSwitch(
-        result: OnceResult,
-        wasRecording: Boolean,
-        watchdog: Runnable,
-    ) {
-        val expectedGeneration = cameraGeneration
-        openCameraForSwitchAttempt(
-            onSuccess = { payload ->
-                val confirmFirstFrame = Runnable {
-                    if (!switching) return@Runnable
-                    if (cameraGeneration != expectedGeneration) return@Runnable
-                    if (awaitingFirstFrameAfterSwitch) {
-                        switching = false
-                        camHandler?.removeCallbacks(watchdog)
-                        Log.e(tag, "switch failed: session reopened but no first frame arrived")
-                        result.error("SWITCH_NO_FRAME", "camera reopened but preview frame did not arrive", null)
-                    } else {
-                        camHandler?.removeCallbacks(watchdog)
-                        switching = false
-                        result.success(payload)
-                    }
-                }
-                camHandler?.postDelayed(confirmFirstFrame, 700)
-            },
-            onError = { code, message ->
-                camHandler?.removeCallbacks(watchdog)
-                switching = false
-                awaitingFirstFrameAfterSwitch = false
-                Log.e(tag, "switch open failed ($code: $message)")
-                result.error(code, message, null)
-            },
-            wasRecording = wasRecording,
-        )
-    }
-
-    @Suppress("MissingPermission")
-    private fun openCameraForSwitchAttempt(
-        onSuccess: (Map<String, Any?>) -> Unit,
-        onError: (String, String?) -> Unit,
-        wasRecording: Boolean,
-    ) {
-        try {
-            manager().openCamera(
-                cameraId,
-                object : CameraDevice.StateCallback() {
-                    override fun onOpened(device: CameraDevice) {
-                        Log.i(tag, "camera reopened (switch) $cameraId")
-                        cameraDevice = device
-                        val camSurface = camInputSurface
-                        if (camSurface == null) {
-                            onError("SWITCH_FAILED", "no cam input surface")
-                            return
-                        }
-                        val surfaces = if (wasRecording && recorderSurface != null) {
-                            listOf(camSurface, recorderSurface!!)
-                        } else {
-                            listOf(camSurface)
-                        }
-                        try {
-                            createSession(
-                                surfaces,
-                                onReady = { s ->
-                                    session = s
-                                    val req = device.createCaptureRequest(
-                                        if (wasRecording) {
-                                            CameraDevice.TEMPLATE_RECORD
-                                        } else {
-                                            CameraDevice.TEMPLATE_PREVIEW
-                                        },
-                                    )
-                                    req.addTarget(camSurface)
-                                    if (wasRecording && recorderSurface != null) {
-                                        req.addTarget(recorderSurface!!)
-                                    }
-                                    fpsRange?.let {
-                                        req.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, it)
-                                        Log.i(tag, "FPS_DIAG applied switch fpsRange=$it")
-                                    }
-                                    s.setRepeatingRequest(req.build(), null, camHandler)
-                                    Log.i(tag, "switch session configured, recording=$wasRecording")
-                                    onSuccess(
-                                        mapOf(
-                                            "isFront" to (lensFacing == CameraCharacteristics.LENS_FACING_FRONT),
-                                        ),
-                                    )
-                                },
-                                onFailed = {
-                                    Log.e(tag, "switch session config failed")
-                                    onError("SWITCH_FAILED", "session config failed")
-                                },
-                            )
-                        } catch (e: Exception) {
-                            Log.e(tag, "switch session failed", e)
-                            onError("SWITCH_FAILED", e.message)
-                        }
-                    }
-
-                    override fun onDisconnected(device: CameraDevice) {
-                        device.close(); cameraDevice = null
-                        onError("CAMERA_DISCONNECTED", "camera disconnected during switch")
-                    }
-
-                    override fun onError(device: CameraDevice, error: Int) {
-                        device.close(); cameraDevice = null
-                        if (error == CameraDevice.StateCallback.ERROR_CAMERA_IN_USE) {
-                            Log.w(tag, "switch open: camera in use, one retry in 250ms")
-                            camHandler?.postDelayed({
-                                openCameraForSwitchAttempt(onSuccess, onError, wasRecording)
-                            }, 250)
-                        } else {
-                            onError("CAMERA_ERROR", "code $error")
-                        }
-                    }
-
-                    override fun onClosed(device: CameraDevice) {
-                        pendingCloseCallback?.let {
-                            pendingCloseCallback = null
-                            it()
-                        }
-                    }
-                },
-                camHandler,
-            )
-        } catch (e: Exception) {
-            Log.e(tag, "openCameraForSwitch failed", e)
-            onError("SWITCH_FAILED", e.message)
-        }
-    }
-
-    private fun createSession(
-        surfaces: List<Surface>,
-        onReady: (CameraCaptureSession) -> Unit,
-        onFailed: (() -> Unit)? = null,
-    ) {
-        val device = cameraDevice ?: return
-        device.createCaptureSession(
-            surfaces,
-            object : CameraCaptureSession.StateCallback() {
-                override fun onConfigured(s: CameraCaptureSession) = onReady(s)
-                override fun onConfigureFailed(s: CameraCaptureSession) {
-                    Log.e(tag, "session config failed")
-                    onFailed?.invoke()
-                }
-            },
-            camHandler,
-        )
-    }
 }
 
 private class OnceResult(private val inner: MethodChannel.Result) : MethodChannel.Result {
@@ -758,8 +540,6 @@ private class OnceResult(private val inner: MethodChannel.Result) : MethodChanne
     }
 }
 
-// ── Минимальный EGL/GL под рендер OES-текстуры в квадратные surface ──
-
 private class EglCore {
     val display: EGLDisplay
     val displayConfig: EGLConfig
@@ -773,9 +553,7 @@ private class EglCore {
         displayConfig = chooseConfig(false)
         recordConfig = chooseConfig(true)
         val ctxAttribs = intArrayOf(EGL14.EGL_CONTEXT_CLIENT_VERSION, 2, EGL14.EGL_NONE)
-        eglContext = EGL14.eglCreateContext(
-            display, displayConfig, EGL14.EGL_NO_CONTEXT, ctxAttribs, 0,
-        )
+        eglContext = EGL14.eglCreateContext(display, displayConfig, EGL14.EGL_NO_CONTEXT, ctxAttribs, 0)
     }
 
     private fun chooseConfig(recordable: Boolean): EGLConfig {
@@ -784,14 +562,14 @@ private class EglCore {
                 EGL14.EGL_RED_SIZE, 8, EGL14.EGL_GREEN_SIZE, 8,
                 EGL14.EGL_BLUE_SIZE, 8, EGL14.EGL_ALPHA_SIZE, 8,
                 EGL14.EGL_RENDERABLE_TYPE, EGL14.EGL_OPENGL_ES2_BIT,
-                0x3142, 1, EGL14.EGL_NONE,
+                0x3142, 1, EGL14.EGL_NONE
             )
         } else {
             intArrayOf(
                 EGL14.EGL_RED_SIZE, 8, EGL14.EGL_GREEN_SIZE, 8,
                 EGL14.EGL_BLUE_SIZE, 8, EGL14.EGL_ALPHA_SIZE, 8,
                 EGL14.EGL_RENDERABLE_TYPE, EGL14.EGL_OPENGL_ES2_BIT,
-                EGL14.EGL_NONE,
+                EGL14.EGL_NONE
             )
         }
         val configs = arrayOfNulls<EGLConfig>(1)
@@ -801,9 +579,7 @@ private class EglCore {
     }
 
     fun release() {
-        EGL14.eglMakeCurrent(
-            display, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_CONTEXT,
-        )
+        EGL14.eglMakeCurrent(display, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_CONTEXT)
         EGL14.eglDestroyContext(display, eglContext)
         EGL14.eglReleaseThread()
         EGL14.eglTerminate(display)
@@ -815,14 +591,9 @@ private class WindowSurface(
     surface: Surface,
     config: EGLConfig,
 ) {
-    private var eglSurface: EGLSurface =
-        EGL14.eglCreateWindowSurface(
-            core.display, config, surface, intArrayOf(EGL14.EGL_NONE), 0,
-        ).also {
-            if (it == EGL14.EGL_NO_SURFACE) {
-                Log.w("VideoNoteRecorder", "eglCreateWindowSurface FAILED err=${EGL14.eglGetError()}")
-            }
-        }
+    private var eglSurface: EGLSurface = EGL14.eglCreateWindowSurface(
+        core.display, config, surface, intArrayOf(EGL14.EGL_NONE), 0
+    )
 
     fun makeCurrent() {
         EGL14.eglMakeCurrent(core.display, eglSurface, eglSurface, core.eglContext)
@@ -833,7 +604,7 @@ private class WindowSurface(
     }
 
     fun setPresentationTime(ns: Long) {
-        EGLExt14.setPresentationTime(core.display, eglSurface, ns)
+        android.opengl.EGLExt.eglPresentationTimeANDROID(core.display, eglSurface, ns)
     }
 
     fun release() {
@@ -841,14 +612,6 @@ private class WindowSurface(
     }
 }
 
-private object EGLExt14 {
-    fun setPresentationTime(display: EGLDisplay, surface: EGLSurface, ns: Long) {
-        android.opengl.EGLExt.eglPresentationTimeANDROID(display, surface, ns)
-    }
-}
-
-// Рисует OES-текстуру камеры в текущий квадратный surface, кропая центральный
-// квадрат и учитывая ориентацию сенсора + зеркало фронталки.
 private class OesProgram {
     private val vertexShader = """
         attribute vec4 aPosition;
@@ -897,22 +660,10 @@ private class OesProgram {
         GLES20.glGenTextures(1, ids, 0)
         val id = ids[0]
         GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, id)
-        GLES20.glTexParameteri(
-            GLES11Ext.GL_TEXTURE_EXTERNAL_OES,
-            GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR,
-        )
-        GLES20.glTexParameteri(
-            GLES11Ext.GL_TEXTURE_EXTERNAL_OES,
-            GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR,
-        )
-        GLES20.glTexParameteri(
-            GLES11Ext.GL_TEXTURE_EXTERNAL_OES,
-            GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE,
-        )
-        GLES20.glTexParameteri(
-            GLES11Ext.GL_TEXTURE_EXTERNAL_OES,
-            GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE,
-        )
+        GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
+        GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
+        GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
+        GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
         return id
     }
 
@@ -976,13 +727,6 @@ private class OesProgram {
         GLES20.glAttachShader(p, v)
         GLES20.glAttachShader(p, f)
         GLES20.glLinkProgram(p)
-        val status = IntArray(1)
-        GLES20.glGetProgramiv(p, GLES20.GL_LINK_STATUS, status, 0)
-        if (status[0] == 0) {
-            val log = GLES20.glGetProgramInfoLog(p)
-            GLES20.glDeleteProgram(p)
-            throw RuntimeException("link failed: $log")
-        }
         return p
     }
 
@@ -990,13 +734,6 @@ private class OesProgram {
         val s = GLES20.glCreateShader(type)
         GLES20.glShaderSource(s, src)
         GLES20.glCompileShader(s)
-        val status = IntArray(1)
-        GLES20.glGetShaderiv(s, GLES20.GL_COMPILE_STATUS, status, 0)
-        if (status[0] == 0) {
-            val log = GLES20.glGetShaderInfoLog(s)
-            GLES20.glDeleteShader(s)
-            throw RuntimeException("compile failed: $log")
-        }
         return s
     }
 }
