@@ -35,6 +35,8 @@ class VideoNoteController {
   final ValueNotifier<bool> _locked = ValueNotifier(false);
   final ValueNotifier<double> _lockDrag = ValueNotifier(0);
   final ValueNotifier<bool> _switchingCamera = ValueNotifier(false);
+  final ValueNotifier<bool> _torchOn = ValueNotifier(false);
+  final ValueNotifier<bool> _torchAvailable = ValueNotifier(false);
   static const double _lockThreshold = 90;
   final Stopwatch _stopwatch = Stopwatch();
   Timer? _timer;
@@ -58,11 +60,24 @@ class VideoNoteController {
       final ok = await _rec.switchCamera();
       if (ok) {
         _isFrontCamera.value = _rec.isFront;
+        _torchAvailable.value = _rec.hasTorch;
+        if (!_rec.hasTorch) _torchOn.value = false;
         Haptics.tap();
       }
     } finally {
       _switchingCamera.value = false;
     }
+  }
+
+  Future<void> toggleTorch() async {
+    if (!_torchAvailable.value) return;
+    final target = !_torchOn.value;
+    final actual = await _rec.toggleTorch(target);
+    // Отражаем РЕАЛЬНОЕ состояние, подтверждённое нативной стороной, а не
+    // слепо переключаем иконку -- если у камеры нет вспышки или запрос не
+    // применился, actual будет false независимо от target.
+    _torchOn.value = actual;
+    if (actual == target) Haptics.tap();
   }
 
   Future<void> toggleMode() async {
@@ -96,6 +111,7 @@ class VideoNoteController {
       }
       _isFrontCamera.value = _rec.isFront;
       _textureId.value = _rec.textureId;
+      _torchAvailable.value = _rec.hasTorch;
       _camReady.value = true;
     } catch (e) {
       logger.w('initNoteCamera: $e');
@@ -239,6 +255,10 @@ class VideoNoteController {
     _stopwatch.stop();
     final elapsed = _stopwatch.elapsedMilliseconds;
     _isRecording.value = false;
+    if (_torchOn.value) {
+      _torchOn.value = false;
+      unawaited(_rec.toggleTorch(false));
+    }
     _cancelDrag.value = 0;
     _locked.value = false;
     _lockDrag.value = 0;
@@ -265,7 +285,6 @@ class VideoNoteController {
     _overlay?.remove();
     _overlay = OverlayEntry(
       builder: (context) {
-        final texId = _textureId.value;
         final cs = Theme.of(context).colorScheme;
         return Positioned.fill(
           child: Container(
@@ -278,27 +297,28 @@ class VideoNoteController {
                   clipBehavior: Clip.none,
                   alignment: Alignment.center,
                   children: [
-                    ClipOval(
-                      child: SizedBox(
-                        width: 320, // Увеличил размер кружка как на скрине
-                        height: 320,
-                        child: texId != null
-                            ? Texture(textureId: texId)
-                            : Container(color: Colors.black),
+                    ValueListenableBuilder<int?>(
+                      valueListenable: _textureId,
+                      builder: (context, texId, _) => ClipOval(
+                        child: SizedBox(
+                          width: 320, // Увеличил размер кружка как на скрине
+                          height: 320,
+                          child: texId != null
+                              ? Texture(textureId: texId)
+                              : Container(color: cs.surfaceContainerHighest),
+                        ),
                       ),
                     ),
-                    // Feature that was discussed but never wired into the
-                    // recording UI: switchCamera() already existed on this
-                    // controller and works mid-recording, but nothing on
-                    // screen ever called it -- there was no flip-camera
-                    // button during video-note recording at all.
+                    // Flip-camera + torch как единый theme-aware pill,
+                    // повторяет расположение из Telegram-референса (левый
+                    // нижний угол круга).
                     Positioned(
-                      right: 4,
+                      left: 4,
                       bottom: 4,
                       child: ValueListenableBuilder<bool>(
                         valueListenable: _switchingCamera,
                         builder: (context, switching, _) => Material(
-                          color: Colors.black54,
+                          color: cs.surfaceContainerHigh.withValues(alpha: 0.85),
                           shape: const CircleBorder(),
                           child: InkWell(
                             customBorder: const CircleBorder(),
@@ -306,22 +326,53 @@ class VideoNoteController {
                             child: Padding(
                               padding: const EdgeInsets.all(10),
                               child: switching
-                                  ? const SizedBox(
+                                  ? SizedBox(
                                       width: 20,
                                       height: 20,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
-                                        color: Colors.white,
+                                        color: cs.onSurface,
                                       ),
                                     )
-                                  : const Icon(
+                                  : Icon(
                                       Icons.flip_camera_ios_outlined,
-                                      color: Colors.white,
+                                      color: cs.onSurface,
                                       size: 20,
                                     ),
                             ),
                           ),
                         ),
+                      ),
+                    ),
+                    Positioned(
+                      right: 4,
+                      bottom: 4,
+                      child: ValueListenableBuilder<bool>(
+                        valueListenable: _torchAvailable,
+                        builder: (context, available, _) {
+                          if (!available) return const SizedBox.shrink();
+                          return ValueListenableBuilder<bool>(
+                            valueListenable: _torchOn,
+                            builder: (context, torchOn, _) => Material(
+                              color: cs.surfaceContainerHigh.withValues(alpha: 0.85),
+                              shape: const CircleBorder(),
+                              child: InkWell(
+                                customBorder: const CircleBorder(),
+                                onTap: toggleTorch,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(10),
+                                  child: Icon(
+                                    torchOn
+                                        ? Icons.flash_on
+                                        : Icons.flash_off,
+                                    color: torchOn ? cs.primary : cs.onSurface,
+                                    size: 20,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     ),
                   ],
@@ -343,7 +394,7 @@ class VideoNoteController {
       constraints: const BoxConstraints(minWidth: 300),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFF1C1C1E),
+        color: cs.surfaceContainerHigh,
         borderRadius: BorderRadius.circular(28),
       ),
       child: Row(
@@ -354,8 +405,8 @@ class VideoNoteController {
             width: 8,
             height: 8,
             margin: const EdgeInsets.only(right: 8),
-            decoration: const BoxDecoration(
-              color: Colors.redAccent,
+            decoration: BoxDecoration(
+              color: cs.error,
               shape: BoxShape.circle,
             ),
           ),
@@ -363,8 +414,8 @@ class VideoNoteController {
             valueListenable: _elapsedMs,
             builder: (context, ms, _) => Text(
               formatElapsed(ms),
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: cs.onSurface,
                 fontSize: 15,
                 fontFeatures: [ui.FontFeature.tabularFigures()],
               ),
@@ -376,12 +427,12 @@ class VideoNoteController {
             child: InkWell(
               borderRadius: BorderRadius.circular(20),
               onTap: () => stop(cancel: true),
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 child: Text(
                   'ОТМЕНА',
                   style: TextStyle(
-                    color: Colors.white70,
+                    color: cs.onSurface.withValues(alpha: 0.7),
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0.3,
@@ -392,14 +443,14 @@ class VideoNoteController {
           ),
           const SizedBox(width: 8),
           Material(
-            color: const Color(0xFFE5CF72), // Желтоватый цвет как на скрине
+            color: cs.primary,
             shape: const CircleBorder(),
             child: InkWell(
               customBorder: const CircleBorder(),
               onTap: () => stop(cancel: false),
-              child: const Padding(
-                padding: EdgeInsets.all(10),
-                child: Icon(Icons.send, color: Colors.black87, size: 20),
+              child: Padding(
+                padding: const EdgeInsets.all(10),
+                child: Icon(Icons.send, color: cs.onPrimary, size: 20),
               ),
             ),
           ),
@@ -426,5 +477,7 @@ class VideoNoteController {
     _isFrontCamera.dispose();
     _locked.dispose();
     _lockDrag.dispose();
+    _torchOn.dispose();
+    _torchAvailable.dispose();
   }
 }
