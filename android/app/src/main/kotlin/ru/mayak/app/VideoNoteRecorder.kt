@@ -51,6 +51,7 @@ class VideoNoteRecorder(
     private var lensFacing = CameraCharacteristics.LENS_FACING_FRONT
     private var sensorOrientation = 270
     private var camSize = Size(1280, 720)
+    private var hasFlashHardware = false
 
     private var cameraDevice: CameraDevice? = null
     private var session: CameraCaptureSession? = null
@@ -78,6 +79,7 @@ class VideoNoteRecorder(
 
     @Volatile private var recording = false
     @Volatile private var glReady = false
+    @Volatile private var torchEnabled = false
 
     private fun manager() =
         context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
@@ -93,6 +95,7 @@ class VideoNoteRecorder(
                 lensFacing = facing
                 sensorOrientation =
                     ch.get(CameraCharacteristics.SENSOR_ORIENTATION) ?: 270
+                hasFlashHardware = ch.get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
                 val map = ch.get(
                     CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP,
                 )
@@ -226,7 +229,6 @@ class VideoNoteRecorder(
             awaitingFirstFrameAfterSwitch = false
             Log.i(tag, "switch first frame arrived generation=$cameraGeneration")
         }
-
         val st = camTexture ?: return
         val prog = program ?: return
         val w = previewWindow ?: return
@@ -314,7 +316,13 @@ class VideoNoteRecorder(
                     }
                     s.setRepeatingRequest(req.build(), null, camHandler)
                     Log.i(tag, "preview session configured")
-                    result.success(mapOf("textureId" to textureId, "size" to edge))
+                    result.success(
+                        mapOf(
+                            "textureId" to textureId,
+                            "size" to edge,
+                            "hasTorch" to (hasFlashHardware && lensFacing == CameraCharacteristics.LENS_FACING_BACK),
+                        ),
+                    )
                 },
                 onFailed = {
                     result.error("PREVIEW_FAILED", "session config failed", null)
@@ -389,6 +397,10 @@ class VideoNoteRecorder(
         if (!recording) {
             result.error("NOT_RECORDING", "no active recording", null); return
         }
+        if (torchEnabled) {
+            torchEnabled = false
+            applyTorchToSession(false)
+        }
         recording = false
         glHandler!!.post {
             try {
@@ -409,6 +421,43 @@ class VideoNoteRecorder(
                 Log.e(tag, "stop failed", e)
                 result.error("STOP_FAILED", e.message, null)
             }
+        }
+    }
+
+    fun toggleTorch(on: Boolean, result: MethodChannel.Result) {
+        if (!hasFlashHardware || lensFacing != CameraCharacteristics.LENS_FACING_BACK) {
+            torchEnabled = false
+            result.success(false)
+            return
+        }
+        torchEnabled = on
+        camHandler?.post {
+            applyTorchToSession(on)
+            result.success(on)
+        }
+    }
+
+    private fun applyTorchToSession(on: Boolean) {
+        val device = cameraDevice ?: return
+        val s = session ?: return
+        val camSurface = camInputSurface ?: return
+        try {
+            val template = if (recording) CameraDevice.TEMPLATE_RECORD else CameraDevice.TEMPLATE_PREVIEW
+            val req = device.createCaptureRequest(template)
+            req.addTarget(camSurface)
+            if (recording) {
+                recorderSurface?.let { req.addTarget(it) }
+            }
+            fpsRange?.let { req.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, it) }
+            if (on) {
+                req.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
+                req.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_TORCH)
+            } else {
+                req.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_OFF)
+            }
+            s.setRepeatingRequest(req.build(), null, camHandler)
+        } catch (e: Exception) {
+            Log.w(tag, "applyTorchToSession: ${e.message}")
         }
     }
 
@@ -441,6 +490,7 @@ class VideoNoteRecorder(
 
     fun dispose() {
         recording = false
+        torchEnabled = false
         try { session?.close() } catch (_: Exception) {}
         session = null
         glHandler?.post {
@@ -459,7 +509,6 @@ class VideoNoteRecorder(
         glThread?.quitSafely(); glThread = null; glHandler = null
         camThread?.quitSafely(); camThread = null; camHandler = null
     }
-
 
     @Volatile private var switching = false
 
@@ -499,6 +548,16 @@ class VideoNoteRecorder(
         camHandler?.postDelayed(watchdog, 4000)
 
         camHandler?.post {
+            val wasTorchOn = torchEnabled
+            torchEnabled = false
+            if (wasTorchOn) {
+                // Физически гасим фонарик на СТАРОЙ сессии перед закрытием,
+                // а не просто сбрасываем флаг -- иначе на части устройств
+                // светодиод может оставаться включённым до полного
+                // освобождения камеры HAL.
+                try { applyTorchToSession(false) } catch (_: Exception) {}
+            }
+
             val oldSession = session
             session = null
             val oldDevice = cameraDevice
@@ -525,7 +584,7 @@ class VideoNoteRecorder(
             // через раз, либо просто ждут "на всякий случай" дольше, чем
             // нужно. Правильное решение -- подписаться на onClosed() того
             // самого device, который мы закрываем, и открывать новую камеру
-            // из этого колбэка, детерминированно.
+            // из этого колбека, детерминированно.
             if (oldDevice == null) {
                 cameraGeneration += 1
                 awaitingFirstFrameAfterSwitch = true
@@ -652,6 +711,7 @@ class VideoNoteRecorder(
                                     onSuccess(
                                         mapOf(
                                             "isFront" to (lensFacing == CameraCharacteristics.LENS_FACING_FRONT),
+                                            "hasTorch" to (hasFlashHardware && lensFacing == CameraCharacteristics.LENS_FACING_BACK),
                                         ),
                                     )
                                 },
