@@ -755,31 +755,40 @@ class ComposerInputBar extends StatelessWidget {
       ),
     );
   }
+
   void _showCameraMenu(BuildContext context, ColorScheme cs, VideoNoteController note) {
     Haptics.tap();
-    final RenderBox button = context.findRenderObject() as RenderBox;
-    final RenderBox overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
-    final Offset position = button.localToGlobal(Offset.zero, ancestor: overlay);
+    final RenderBox button = context.findRenderObject()! as RenderBox;
+    final RenderBox overlay =
+        Overlay.of(context).context.findRenderObject()! as RenderBox;
+    final RelativeRect position = RelativeRect.fromRect(
+      Rect.fromPoints(
+        button.localToGlobal(Offset.zero, ancestor: overlay),
+        button.localToGlobal(
+          button.size.bottomRight(Offset.zero),
+          ancestor: overlay,
+        ),
+      ),
+      Offset.zero & overlay.size,
+    );
 
     showMenu<bool>(
       context: context,
-      color: const Color(0xFF1C1C1E),
+      color: cs.surfaceContainerHigh,
       elevation: 8,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      position: RelativeRect.fromLTRB(
-        position.dx - 100,
-        position.dy - 120,
-        position.dx + button.size.width,
-        position.dy,
-      ),
+      position: position,
       items: [
         PopupMenuItem<bool>(
           value: true,
           child: Row(
             children: [
-              const Icon(Icons.person_outline, color: Colors.white, size: 20),
+              Icon(Symbols.face, color: cs.onSurface, size: 20),
               const SizedBox(width: 12),
-              const Text('Фронтальная', style: TextStyle(color: Colors.white, fontSize: 15)),
+              Text(
+                'Фронтальная',
+                style: TextStyle(color: cs.onSurface, fontSize: 15),
+              ),
             ],
           ),
         ),
@@ -787,9 +796,12 @@ class ComposerInputBar extends StatelessWidget {
           value: false,
           child: Row(
             children: [
-              const Icon(Icons.camera_alt_outlined, color: Colors.white, size: 20),
+              Icon(Symbols.camera_alt, color: cs.onSurface, size: 20),
               const SizedBox(width: 12),
-              const Text('Основная', style: TextStyle(color: Colors.white, fontSize: 15)),
+              Text(
+                'Основная',
+                style: TextStyle(color: cs.onSurface, fontSize: 15),
+              ),
             ],
           ),
         ),
@@ -800,7 +812,6 @@ class ComposerInputBar extends StatelessWidget {
       }
     });
   }
-
 }
 
 class _AttachButton extends StatelessWidget {
