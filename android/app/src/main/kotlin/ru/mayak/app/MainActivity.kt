@@ -263,6 +263,11 @@ class MainActivity : FlutterActivity() {
                     ?: result.error("NOT_READY", "recorder not initialized", null)
                 "switchCamera" -> noteRecorder?.switchCamera(result)
                     ?: result.error("NOT_READY", "recorder not initialized", null)
+                "toggleTorch" -> {
+                    val on = call.argument<Boolean>("on") ?: false
+                    noteRecorder?.toggleTorch(on, result)
+                        ?: result.error("NOT_READY", "recorder not initialized", null)
+                }
                 "dispose" -> {
                     noteRecorder?.dispose()
                     noteRecorder = null
