@@ -4,15 +4,12 @@ import 'package:flutter/services.dart';
 
 import '../utils/logger.dart';
 
-/// Нативная запись видео-кружка (Android, Camera2 + MediaRecorder): пишет
-/// квадрат 480×480 сразу при съёмке — как официальный клиент. Превью отдаётся
-/// через Flutter [Texture] по [textureId]. media3-перекод не используется
-/// (серверный валидатор принимает только нативно записанный MP4).
 class NativeVideoNoteRecorder {
   static const _channel = MethodChannel('ru.mayak.app/video_note');
 
   int? textureId;
   bool isFront = true;
+  bool hasTorch = false;
   bool get isAvailable => Platform.isAndroid;
 
   Future<bool> init({bool front = true}) async {
@@ -23,6 +20,7 @@ class NativeVideoNoteRecorder {
       });
       textureId = res?['textureId'] as int?;
       isFront = front;
+      hasTorch = res?['hasTorch'] as bool? ?? false;
       return textureId != null;
     } catch (e) {
       logger.w('NativeVideoNoteRecorder.init: $e');
@@ -38,9 +36,30 @@ class NativeVideoNoteRecorder {
       );
       final front = res?['isFront'] as bool?;
       if (front != null) isFront = front;
+      hasTorch = res?['hasTorch'] as bool? ?? false;
       return front != null;
     } catch (e) {
       logger.w('NativeVideoNoteRecorder.switchCamera: $e');
+      return false;
+    }
+  }
+
+  /// Returns the ACTUAL torch state reported by the native side after the
+  /// request, not just an echo of [on]. The native layer only turns the LED
+  /// on when the current camera actually has flash hardware
+  /// (`FLASH_INFO_AVAILABLE`) and is the back camera; on any other case (no
+  /// hardware, front camera, apply failure) it reports back `false`. The
+  /// Dart UI must reflect this real state instead of blindly toggling the
+  /// icon.
+  Future<bool> toggleTorch(bool on) async {
+    if (!isAvailable) return false;
+    try {
+      final result = await _channel.invokeMethod<bool>('toggleTorch', {
+        'on': on,
+      });
+      return result ?? false;
+    } catch (e) {
+      logger.w('NativeVideoNoteRecorder.toggleTorch: $e');
       return false;
     }
   }
