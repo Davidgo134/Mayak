@@ -117,6 +117,7 @@ import '../../widgets/reload_on_reconnect.dart';
 import '../../widgets/schedule_time_picker.dart';
 import '../../widgets/chat_wallpaper_sheet.dart';
 import '../../widgets/chat_wallpaper_view.dart';
+import '../../../main.dart';
 import '../../widgets/glossy_pill.dart';
 import '../../widgets/liquid_glass.dart';
 import 'scheduled_messages_screen.dart';
@@ -5506,6 +5507,69 @@ class _ChatScreenState extends State<ChatScreen>
     );
   }
 
+  Widget _buildRoundVideoPanel(ColorScheme cs) {
+    return ValueListenableBuilder<RoundVideoPanelState?>(
+      valueListenable: roundVideoPanelState,
+      builder: (context, panel, _) {
+        if (panel == null) return const SizedBox.shrink();
+        // Design fix: this used to be a flat Container(color:
+        // cs.surfaceContainerHigh) -- the only chat panel in the whole
+        // screen that didn't route through GlassSurface/_FrostedPanel, so
+        // it looked visually foreign next to the composer, sticker panel,
+        // and AppBar, which all share the same frosted/liquid material.
+        // Now it uses the same _FrostedPanel wrapper (AppFrost tint +
+        // hairline border, liquid-glass shader when enabled) as everything
+        // else, so it reads as part of one consistent design language
+        // instead of a bolted-on widget.
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: _FrostedPanel(
+              tint: AppFrost.panelTint(cs),
+              border: Border.fromBorderSide(AppFrost.hairline(cs)),
+              child: SizedBox(
+                height: 44,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        onPressed: panel.onTogglePlay,
+                        icon: Icon(
+                          panel.isPlaying ? Symbols.pause : Symbols.play_arrow,
+                        ),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      const SizedBox(width: 4),
+                      GestureDetector(
+                        onTap: panel.onCycleSpeed,
+                        child: Text(
+                          '${panel.speed == panel.speed.roundToDouble() ? panel.speed.toInt() : panel.speed}x',
+                          style: TextStyle(
+                            color: cs.onSurface,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        onPressed: panel.onClose,
+                        icon: const Icon(Symbols.close),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildColorBody() {
     final cs = Theme.of(context).colorScheme;
     final banner = _buildPinnedBanner(floating: false);
@@ -5517,6 +5581,7 @@ class _ChatScreenState extends State<ChatScreen>
     return Column(
       children: [
         ?banner,
+        _buildRoundVideoPanel(cs),
         Expanded(
           child: Stack(
             fit: StackFit.expand,
@@ -7373,12 +7438,19 @@ class _SelectableMessageRowState extends State<_SelectableMessageRow> {
   final GlobalKey _boundaryKey = GlobalKey();
   Offset? _lastTapDown;
   Timer? _openTimer;
+  VoidCallback? _closeActionsMenu;
 
   bool _isPinnedNow() => widget.isPinned();
 
   @override
   void dispose() {
     _openTimer?.cancel();
+    // Если строка сообщения уничтожается (например, пользователь ушёл с
+    // экрана чата), а меню действий/реакций ещё открыто -- принудительно
+    // закрываем его. Раньше меню оставалось висеть в общем Overlay
+    // приложения поверх следующего экрана (списка чатов).
+    _closeActionsMenu?.call();
+    _closeActionsMenu = null;
     super.dispose();
   }
 
@@ -7403,7 +7475,7 @@ class _SelectableMessageRowState extends State<_SelectableMessageRow> {
     Haptics.tap();
 
     final controller = MessageActionsController();
-    showMessageActions(
+    _closeActionsMenu = showMessageActions(
       context: ctx,
       snapshot: snapshot,
       originRect: rect,
@@ -7434,7 +7506,10 @@ class _SelectableMessageRowState extends State<_SelectableMessageRow> {
         await animojiModule.ensureLoaded();
         return _animojiReactionEmojis();
       },
-      onDispose: controller.dispose,
+      onDispose: () {
+        _closeActionsMenu = null;
+        controller.dispose();
+      },
     );
   }
 

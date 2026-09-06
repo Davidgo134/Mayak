@@ -1,7 +1,7 @@
 abstract final class UpdateConfig {
   static const String baseUrl = String.fromEnvironment(
-    'KOMET_UPDATE_BASE_URL',
-    defaultValue: 'https://dl.komet.pw',
+    'MAYAK_UPDATE_BASE_URL',
+    defaultValue: 'https://raw.githubusercontent.com/Davidgo134/Mayak/update',
   );
 
   static bool get isConfigured => _normalizedBase.isNotEmpty;

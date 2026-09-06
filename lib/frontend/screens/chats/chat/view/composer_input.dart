@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import 'package:komet/backend/modules/messages.dart';
+import 'package:komet/core/utils/haptics.dart';
 import 'package:komet/core/config/app_chat_chrome.dart';
 import 'package:komet/core/config/app_colors.dart';
 import 'package:komet/core/config/app_composer_background.dart';
@@ -549,8 +550,9 @@ class ComposerInputBar extends StatelessWidget {
                                                           : voiceRec.handleEnd()
                                                     : null,
                                                 child: visual,
-                                              );
-                                            },
+                                              ));
+                                                  },
+                                                ),
                                           ),
                                     ),
                               ),
@@ -1087,6 +1089,63 @@ class ComposerInputBar extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  void _showCameraMenu(BuildContext context, ColorScheme cs, VideoNoteController note) {
+    Haptics.tap();
+    final RenderBox button = context.findRenderObject()! as RenderBox;
+    final RenderBox overlay =
+        Overlay.of(context).context.findRenderObject()! as RenderBox;
+    final RelativeRect position = RelativeRect.fromRect(
+      Rect.fromPoints(
+        button.localToGlobal(Offset.zero, ancestor: overlay),
+        button.localToGlobal(
+          button.size.bottomRight(Offset.zero),
+          ancestor: overlay,
+        ),
+      ),
+      Offset.zero & overlay.size,
+    );
+
+    showMenu<bool>(
+      context: context,
+      color: cs.surfaceContainerHigh,
+      elevation: 8,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      position: position,
+      items: [
+        PopupMenuItem<bool>(
+          value: true,
+          child: Row(
+            children: [
+              Icon(Symbols.face, color: cs.onSurface, size: 20),
+              const SizedBox(width: 12),
+              Text(
+                'Фронтальная',
+                style: TextStyle(color: cs.onSurface, fontSize: 15),
+              ),
+            ],
+          ),
+        ),
+        PopupMenuItem<bool>(
+          value: false,
+          child: Row(
+            children: [
+              Icon(Symbols.camera_alt, color: cs.onSurface, size: 20),
+              const SizedBox(width: 12),
+              Text(
+                'Основная',
+                style: TextStyle(color: cs.onSurface, fontSize: 15),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ).then((isFront) {
+      if (isFront != null) {
+        note.startWithCamera(isFront: isFront);
+      }
+    });
   }
 }
 

@@ -53,7 +53,7 @@ class _NotificationJob {
 
 class UploadNotificationService {
   static const MethodChannel _channel = MethodChannel(
-    'ru.komet.app/upload_service',
+    'ru.mayak.app/upload_service',
   );
   static const int _minIntervalMs = 350;
   static const Duration _startDelay = Duration(milliseconds: 700);

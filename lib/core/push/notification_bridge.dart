@@ -12,8 +12,8 @@ class NotificationBridge {
   NotificationBridge._();
   static final NotificationBridge instance = NotificationBridge._();
 
-  static const _method = MethodChannel('ru.komet.app/notifications');
-  static const _events = EventChannel('ru.komet.app/notification_events');
+  static const _method = MethodChannel('ru.mayak.app/notifications');
+  static const _events = EventChannel('ru.mayak.app/notification_events');
   static const _retryDelay = Duration(milliseconds: 300);
   static const _maxRetries = 100;
 

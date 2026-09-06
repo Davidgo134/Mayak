@@ -9,7 +9,7 @@ class FkmBridge {
   FkmBridge._();
   static final FkmBridge instance = FkmBridge._();
 
-  static const _method = MethodChannel('ru.komet.app/fkm');
+  static const _method = MethodChannel('ru.mayak.app/fkm');
 
   VoidCallback? _onDisabled;
   bool _handlerSet = false;

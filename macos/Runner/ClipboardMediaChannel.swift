@@ -2,7 +2,7 @@ import Cocoa
 import FlutterMacOS
 
 enum ClipboardMediaChannel {
-  private static let channelName = "ru.komet.app/clipboard"
+  private static let channelName = "ru.mayak.app/clipboard"
 
   static func register(messenger: FlutterBinaryMessenger) {
     let channel = FlutterMethodChannel(name: channelName, binaryMessenger: messenger)

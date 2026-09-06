@@ -17,7 +17,7 @@ if (hasReleaseSigning) {
 }
 
 android {
-    namespace = "ru.komet.app"
+    namespace = "ru.mayak.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -32,7 +32,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "ru.komet.app"
+        applicationId = "ru.mayak.app"
         minSdk = maxOf(flutter.minSdkVersion, 23)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -57,7 +57,7 @@ android {
         create("komet") {
             dimension = "distribution"
             isDefault = true
-            applicationId = "ru.komet.app"
+            applicationId = "ru.mayak.app"
         }
         create("oneme") {
             dimension = "distribution"
@@ -65,7 +65,7 @@ android {
         }
         create("store") {
             dimension = "distribution"
-            applicationId = "ru.komet.app"
+            applicationId = "ru.mayak.app"
         }
     }
 
@@ -77,6 +77,13 @@ android {
                 storeFile = file(keystoreProperties["storeFile"] as String)
                 storePassword = keystoreProperties["storePassword"] as String
             }
+        }
+        getByName("debug") {
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+            storeFile = rootProject.file("debug.keystore")
+            storePassword = "android"
+            storeType = "PKCS12"
         }
     }
 

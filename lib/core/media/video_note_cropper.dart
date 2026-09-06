@@ -9,7 +9,7 @@ import '../utils/logger.dart';
 /// AVAssetExportSession. Без искажений: заполняет квадрат и обрезает
 /// лишнее по бокам. На других платформах возвращает `null`.
 class VideoNoteCropper {
-  static const _channel = MethodChannel('ru.komet.app/video');
+  static const _channel = MethodChannel('ru.mayak.app/video');
 
   static Future<String?> cropSquare(String input, {int size = 480}) async {
     if (!Platform.isAndroid && !Platform.isIOS) return null;

@@ -623,13 +623,12 @@ class _SettingsTabState extends State<SettingsTab> with SpectrumSurface {
                                 : _checkForUpdates,
                           ),
                         _SettingsItem(
-                          leading: Image.asset(
-                            'assets/komet.png',
-                            width: 22,
-                            height: 22,
+                          leading: Icon(
+                            Symbols.tune,
+                            size: 22,
                             color: cs.onSurfaceVariant,
                           ),
-                          label: 'Komet',
+                          label: 'Маяк',
                           onTap: () {
                             Navigator.push(
                               context,

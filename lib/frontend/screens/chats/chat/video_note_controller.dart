@@ -124,7 +124,9 @@ class VideoNoteController {
         await _disposeCamera();
         return;
       }
+      _isFrontCamera.value = _rec.isFront;
       _textureId.value = _rec.textureId;
+      _torchAvailable.value = _rec.hasTorch;
       _camReady.value = true;
       unawaited(ScreenWake.instance.acquire(this));
     } catch (e) {
@@ -162,6 +164,56 @@ class VideoNoteController {
     unawaited(ScreenWake.instance.release(this));
     _textureId.value = null;
     if (!_stub) await _rec.dispose();
+  }
+
+  
+  Future<void> startWithCamera({required bool isFront}) async {
+    if (_isRecording.value) return;
+    _stopRequested = false;
+
+    // Сразу лочим запись, чтобы она шла без удержания
+    _locked.value = true;
+
+    if (_rec.textureId == null) {
+      await _initCamera(isFront: isFront);
+    } else {
+      if (isFront != _isFrontCamera.value) {
+        await switchCamera();
+      }
+    }
+
+    try {
+      final ok = await _rec.start();
+      if (!ok) {
+        _isRecording.value = false;
+        return;
+      }
+      if (!isMounted()) {
+        await _rec.stop();
+        return;
+      }
+      _stopwatch
+        ..reset()
+        ..start();
+      _elapsedMs.value = 0;
+      _cancelDrag.value = 0;
+      _lockDrag.value = 0;
+      _cancelled = false;
+      _isRecording.value = true;
+      FocusManager.instance.primaryFocus?.unfocus();
+      Haptics.send();
+      _timer = Timer.periodic(const Duration(milliseconds: 100), (_) {
+        _elapsedMs.value = _stopwatch.elapsedMilliseconds;
+      });
+      _showOverlay();
+      if (_stopRequested) {
+        _stopRequested = false;
+        await stop(cancel: false);
+      }
+    } catch (e) {
+      logger.w('startNoteRecording: $e');
+      _isRecording.value = false;
+    }
   }
 
   Future<void> start() async {
@@ -275,6 +327,10 @@ class VideoNoteController {
     _stopwatch.stop();
     final elapsed = _stopwatch.elapsedMilliseconds;
     _isRecording.value = false;
+    if (_torchOn.value) {
+      _torchOn.value = false;
+      unawaited(_rec.toggleTorch(false));
+    }
     _cancelDrag.value = 0;
     _lockDrag.value = 0;
     _locked.value = false;

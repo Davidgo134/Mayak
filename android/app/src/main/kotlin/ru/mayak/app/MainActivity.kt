@@ -1,4 +1,4 @@
-package ru.komet.app
+package ru.mayak.app
 
 import android.Manifest
 import android.app.KeyguardManager
@@ -52,7 +52,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 class MainActivity : FlutterActivity() {
 
-    private val channelName = "ru.komet.app/vpn_bypass"
+    private val channelName = "ru.mayak.app/vpn_bypass"
     private val iconPackage = MainActivity::class.java.name.substringBeforeLast('.')
     private val iconComponents = mapOf(
         "MainActivity" to "$iconPackage.MainActivity",
@@ -68,6 +68,9 @@ class MainActivity : FlutterActivity() {
     private val nfcReaderCallback = NfcAdapter.ReaderCallback { tag -> onNfcTagDiscovered(tag) }
 
     private var noteRecorder: VideoNoteRecorder? = null
+    private var pendingCameraInitFront: Boolean = true
+    private var pendingCameraInitResult: MethodChannel.Result? = null
+    private var textureRenderer: io.flutter.view.TextureRegistry? = null
     private var ble: BleContactExchange? = null
     private var pendingSelfId = 0L
     private var pendingSelfPhone = 0L
@@ -122,11 +125,12 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
+        textureRenderer = flutterEngine.renderer
         nfcAdapter = NfcAdapter.getDefaultAdapter(this)
 
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
-            "ru.komet.app/nfc",
+            "ru.mayak.app/nfc",
         ).setMethodCallHandler { call, result ->
             when (call.method) {
                 "status" -> result.success(nfcStatus())
@@ -150,7 +154,7 @@ class MainActivity : FlutterActivity() {
 
         EventChannel(
             flutterEngine.dartExecutor.binaryMessenger,
-            "ru.komet.app/nfc_events",
+            "ru.mayak.app/nfc_events",
         ).setStreamHandler(object : EventChannel.StreamHandler {
             override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
                 nfcEvents = events
@@ -175,7 +179,7 @@ class MainActivity : FlutterActivity() {
 
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
-            "ru.komet.app/app_icon",
+            "ru.mayak.app/app_icon",
         ).setMethodCallHandler { call, result ->
             when (call.method) {
                 "setAppIcon" -> {
@@ -197,7 +201,7 @@ class MainActivity : FlutterActivity() {
 
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
-            "ru.komet.app/upload_service",
+            "ru.mayak.app/upload_service",
         ).setMethodCallHandler { call, result ->
             val ctx = this
             fun uploadIntent(call: MethodCall, action: String) =
@@ -248,7 +252,7 @@ class MainActivity : FlutterActivity() {
 
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
-            "ru.komet.app/video_note",
+            "ru.mayak.app/video_note",
         ).setMethodCallHandler { call, result ->
             when (call.method) {
                 "permission" -> requestNotePermissions(result)
@@ -276,6 +280,13 @@ class MainActivity : FlutterActivity() {
                     ?: result.error("NOT_READY", "recorder not initialized", null)
                 "stop" -> noteRecorder?.stop(result)
                     ?: result.error("NOT_READY", "recorder not initialized", null)
+                "switchCamera" -> noteRecorder?.switchCamera(result)
+                    ?: result.error("NOT_READY", "recorder not initialized", null)
+                "toggleTorch" -> {
+                    val on = call.argument<Boolean>("on") ?: false
+                    noteRecorder?.toggleTorch(on, result)
+                        ?: result.error("NOT_READY", "recorder not initialized", null)
+                }
                 "dispose" -> {
                     noteRecorder?.dispose()
                     noteRecorder = null
@@ -287,7 +298,7 @@ class MainActivity : FlutterActivity() {
 
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
-            "ru.komet.app/video",
+            "ru.mayak.app/video",
         ).setMethodCallHandler { call, result ->
             when (call.method) {
                 "cropSquare" -> {
@@ -332,7 +343,7 @@ class MainActivity : FlutterActivity() {
 
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
-            "ru.komet.app/calls",
+            "ru.mayak.app/calls",
         ).setMethodCallHandler { call, result ->
             when (call.method) {
                 "consumeInitialCall" -> {
@@ -404,7 +415,7 @@ class MainActivity : FlutterActivity() {
 
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
-            "ru.komet.app/screen",
+            "ru.mayak.app/screen",
         ).setMethodCallHandler { call, result ->
             when (call.method) {
                 "setKeepAwake" -> {
@@ -417,7 +428,7 @@ class MainActivity : FlutterActivity() {
 
         EventChannel(
             flutterEngine.dartExecutor.binaryMessenger,
-            "ru.komet.app/calls_events",
+            "ru.mayak.app/calls_events",
         ).setStreamHandler(object : EventChannel.StreamHandler {
             override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
                 CallEvents.sink = events
@@ -430,7 +441,7 @@ class MainActivity : FlutterActivity() {
 
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
-            "ru.komet.app/notifications",
+            "ru.mayak.app/notifications",
         ).setMethodCallHandler { call, result ->
             when (call.method) {
                 "consumeInitialChat" -> {
@@ -453,7 +464,7 @@ class MainActivity : FlutterActivity() {
 
         EventChannel(
             flutterEngine.dartExecutor.binaryMessenger,
-            "ru.komet.app/notification_events",
+            "ru.mayak.app/notification_events",
         ).setStreamHandler(object : EventChannel.StreamHandler {
             override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
                 ChatNotifications.sink = events
@@ -466,7 +477,7 @@ class MainActivity : FlutterActivity() {
 
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
-            "ru.komet.app/share",
+            "ru.mayak.app/share",
         ).setMethodCallHandler { call, result ->
             when (call.method) {
                 "consumeInitialShare" -> {
@@ -501,7 +512,7 @@ class MainActivity : FlutterActivity() {
 
         EventChannel(
             flutterEngine.dartExecutor.binaryMessenger,
-            "ru.komet.app/share_events",
+            "ru.mayak.app/share_events",
         ).setStreamHandler(object : EventChannel.StreamHandler {
             override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
                 ShareIntake.sink = events

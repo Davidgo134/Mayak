@@ -1,19 +1,18 @@
-> [!IMPORTANT]
-> Потерялись? Возможно вы ищите старую версию Komet. Она расположена [здесь](https://github.com/KometTeam/KometOld).
----
+<img src="assets/komet.png" width="100" alt="Mayak Logo">
 
-<img src="assets/komet.png" width="100" alt="Komet Logo">
-
-# Komet
-Альтернативный FOSS клиент для мессенджера MAX
+# Mayak
+Альтернативный FOSS клиент для мессенджера MAX. Форк [Komet](https://github.com/KometTeam/Komet) с собственными доработками интерфейса.
 
 ## Установка
-[Последний релиз](https://github.com/KometTeam/Komet/releases/latest) / [Telegram Канал](https://t.me/TeamKomet) 
+[Последний релиз](https://github.com/Davidgo134/Mayak/releases/latest)
 
 ## Сборка из исходного кода
 ```console
-$ flutter build [windows|linux] [--release]
+$ flutter build [apk|windows|linux] [--release]
 ```
 
+## Отношение к апстриму
+Mayak периодически синхронизируется с [Komet](https://github.com/KometTeam/Komet): исправления и обновления апстрима в приоритете, поверх — собственные наработки Mayak.
+
 ## Хотите помочь?
-Нашли ошибку и сами её исправили? Сделайте Pull-Request.<br/>
+Нашли ошибку и сами её исправили? Pull-Request приветствуется.

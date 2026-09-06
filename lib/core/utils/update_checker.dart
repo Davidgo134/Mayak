@@ -107,7 +107,7 @@ class UpdateCheckResult {
 }
 
 abstract class UpdateChecker {
-  static const String _userAgent = 'KometUpdateChecker';
+  static const String _userAgent = 'MayakUpdateChecker';
 
   static const String _lastCheckKey = 'update_last_check_ms';
   static const String _skippedTagKey = 'update_skipped_tag';

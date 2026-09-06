@@ -20,6 +20,14 @@ import '../../../../models/attachment.dart';
 import '../../small_spinner.dart';
 import '../../upload_progress_ring.dart';
 
+/// Round video message bubble, Telegram-Android style:
+/// - Tap expands the circle in place (no separate fullscreen route).
+/// - A top bar appears above it: play/pause on the left, speed toggle
+///   and a close (X) button on the right. Close = fully stop & collapse.
+/// - Scrolling the bubble off-screen while playing hands the controller
+///   off to the global floating PiP mini player instead of stopping it.
+/// - Dragging along the ring edge scrubs; the thumb dot only shows while
+///   paused, matching Telegram's behavior.
 class VideoNoteBubble extends StatefulWidget {
   final VideoAttachment attachment;
   final String messageId;
@@ -420,6 +428,227 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
     }
   }
 
+  void _publishPanelState() {
+    if (!_expanded) {
+      roundVideoPanelState.value = null;
+      return;
+    }
+    final c = _controller;
+    roundVideoPanelState.value = RoundVideoPanelState(
+      isPlaying: c?.value.isPlaying ?? false,
+      speed: _speed,
+      onTogglePlay: _togglePlay,
+      onCycleSpeed: _cycleSpeed,
+      onClose: _closeExpanded,
+    );
+  }
+
+  void _togglePlay() {
+    final c = _controller;
+    if (c == null || !c.value.isInitialized) return;
+    Haptics.tap();
+    setState(() => c.value.isPlaying ? c.pause() : c.play());
+    _publishPanelState();
+  }
+
+  void _cycleSpeed() {
+    final c = _controller;
+    if (c == null || !c.value.isInitialized) return;
+    Haptics.tap();
+    const speeds = [1.0, 1.5, 2.0];
+    final idx = speeds.indexOf(_speed);
+    final next = speeds[(idx + 1) % speeds.length];
+    setState(() => _speed = next);
+    c.setPlaybackSpeed(next);
+    _publishPanelState();
+  }
+
+  /// Close (X) button: fully stops playback and collapses back to the
+  /// small in-feed circle. No PiP is created — this is a hard stop,
+  /// distinct from scrolling away (which hands off to PiP).
+  void _closeExpanded() {
+    Haptics.tap();
+    final c = _controller;
+    c?.pause();
+    c?.removeListener(_onTick);
+    c?.dispose();
+    setState(() {
+      _controller = null;
+      _expanded = false;
+      _seeking = false;
+    });
+    _publishPanelState();
+  }
+
+  /// Hands the currently playing controller off to the global floating
+  /// PiP mini player (Telegram's PipRoundVideoView behavior) instead of
+  /// stopping it, e.g. when the bubble scrolls off-screen or the user
+  /// navigates to another screen while it's still playing.
+  void handOffToPip() {
+    final c = _controller;
+    if (c == null || !c.value.isInitialized || !c.value.isPlaying) return;
+    RoundVideoPipController.instance.activate(
+      PipData(
+        controller: c,
+        messageId: widget.messageId,
+        chatId: widget.chatId,
+        onDisposeIfOwned: () {
+          c.removeListener(_onTick);
+          c.dispose();
+        },
+        onExpand: (context) {
+          // Bugfix: this used to call clear() with the default
+          // disposeController: false, which detached the PipData without
+          // ever invoking onDisposeIfOwned. Since there is no bubble on
+          // screen to reclaim this controller (the original message may be
+          // scrolled far away or on a different chat), the VideoPlayerController
+          // was orphaned -- still decoding and holding native player/texture
+          // resources with nothing left to ever call .dispose() on it. Tapping
+          // the PiP bubble now stops playback and fully disposes it, same as
+          // the explicit close (X) button, until in-place restore is wired up.
+          c.pause();
+          RoundVideoPipController.instance.clear(disposeController: true);
+        },
+      ),
+    );
+    setState(() {
+      _controller = null;
+      _expanded = false;
+    });
+    _publishPanelState();
+  }
+
+  double _angleToProgress(Offset local, double size) {
+    final center = Offset(size / 2, size / 2);
+    final d = local - center;
+    var angle = math.atan2(d.dy, d.dx) + math.pi / 2;
+    if (angle < 0) angle += 2 * math.pi;
+    return (angle / (2 * math.pi)).clamp(0.0, 1.0);
+  }
+
+  bool _nearRingEdge(Offset local, double size) {
+    final center = Offset(size / 2, size / 2);
+    final dist = (local - center).distance;
+    final radius = size / 2;
+    return dist > radius - 28;
+  }
+
+  void _onRingPanStart(DragStartDetails details, double size) {
+    final c = _controller;
+    if (c == null || !c.value.isInitialized) return;
+    if (!_nearRingEdge(details.localPosition, size)) return;
+    Haptics.tap();
+    setState(() {
+      _seeking = true;
+      _seekProgress = _angleToProgress(details.localPosition, size);
+    });
+  }
+
+  DateTime _lastLiveSeek = DateTime.fromMillisecondsSinceEpoch(0);
+
+  void _onRingPanUpdate(DragUpdateDetails details, double size) {
+    if (!_seeking) return;
+    setState(() {
+      _seekProgress = _angleToProgress(details.localPosition, size);
+    });
+    // Live-scrub the actual player while dragging, like Telegram, but
+    // throttled: calling VideoPlayerController.seekTo() on every pixel of
+    // drag (up to 60x/sec) queues far more native seek calls than
+    // ExoPlayer/AVPlayer can keep up with, so the preview visibly lags
+    // behind the finger. Capping it to ~10 calls/sec keeps the scrub feeling
+    // live without saturating the native seek queue.
+    final now = DateTime.now();
+    if (now.difference(_lastLiveSeek).inMilliseconds < 100) return;
+    _lastLiveSeek = now;
+    final c = _controller;
+    if (c != null && c.value.isInitialized && c.value.duration.inMilliseconds > 0) {
+      final target = Duration(
+        milliseconds: (c.value.duration.inMilliseconds * _seekProgress).round(),
+      );
+      c.seekTo(target);
+    }
+  }
+
+  void _onRingPanEnd(DragEndDetails details) {
+    final c = _controller;
+    if (c != null &&
+        c.value.isInitialized &&
+        c.value.duration.inMilliseconds > 0) {
+      final target = Duration(
+        milliseconds: (c.value.duration.inMilliseconds * _seekProgress)
+            .round(),
+      );
+      c.seekTo(target);
+    }
+    setState(() => _seeking = false);
+  }
+
+  String _formatTime(Duration d) {
+    final totalSeconds = d.inSeconds;
+    final minutes = totalSeconds ~/ 60;
+    final seconds = totalSeconds % 60;
+    return '$minutes:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _requestTranscription() async {
+    final videoId = widget.attachment.videoId;
+    if (videoId == null) return;
+
+    if (_transcriptionVisible && _transcriptionText != null) {
+      setState(() => _transcriptionVisible = false);
+      return;
+    }
+
+    if (TranscriptionCache.has(widget.messageId)) {
+      final cached = TranscriptionCache.get(widget.messageId)!;
+      setState(() {
+        _transcriptionText = cached.text ?? 'не удалось распознать текст';
+        _transcriptionVisible = true;
+      });
+      return;
+    }
+
+    Haptics.tap();
+    setState(() => _transcriptionLoading = true);
+    _transcriptionIconAnim.repeat();
+
+    try {
+      final result = await messagesModule.requestTranscription(
+        widget.chatId,
+        int.tryParse(widget.messageId) ?? 0,
+        videoId,
+      );
+
+      TranscriptionCache.put(widget.messageId, result);
+
+      if (!mounted) return;
+      setState(() {
+        _transcriptionLoading = false;
+        _transcriptionIconAnim.stop();
+        if (result.status == 1) {
+          _transcriptionText = (result.text == null || result.text!.isEmpty)
+              ? 'не удалось распознать текст'
+              : result.text;
+          _transcriptionVisible = true;
+        } else if (result.status == 0) {
+          _transcriptionText = 'транскрибация...';
+          _transcriptionVisible = true;
+        } else {
+          _transcriptionText = 'ошибка транскрибации';
+          _transcriptionVisible = true;
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _transcriptionLoading = false;
+        _transcriptionIconAnim.stop();
+        _transcriptionText = 'ошибка транскрибации';
+        _transcriptionVisible = true;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -526,7 +755,45 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
             ],
           ],
         ),
-      ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.topLeft,
+          child: _transcriptionVisible
+              ? Container(
+                  key: const ValueKey('transcription'),
+                  margin: const EdgeInsets.only(top: 8),
+                  width: _collapsedSize,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: widget.cs.surfaceContainerHighest.withValues(
+                      alpha: 0.6,
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    child: Text(
+                      _transcriptionText ?? '',
+                      key: ValueKey(_transcriptionText),
+                      style: TextStyle(
+                        color: textColor.withValues(alpha: 0.85),
+                        fontSize: 13,
+                        height: 1.35,
+                      ),
+                    ),
+                  ),
+                )
+              : const SizedBox(
+                  key: ValueKey('no-transcription'),
+                  width: _collapsedSize,
+                  height: 0,
+                ),
+        ),
+      ],
     );
   }
 
@@ -777,4 +1044,54 @@ class _PreviewPool {
   static void pin(_VideoNoteBubbleState state) => _idle.remove(state);
 
   static void unregister(_VideoNoteBubbleState state) => _idle.remove(state);
+}
+
+class _RingPainter extends CustomPainter {
+  final double progress;
+  final bool showThumb;
+
+  _RingPainter({required this.progress, required this.showThumb});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2 - 4;
+
+    final trackPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.3)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3;
+    canvas.drawCircle(center, radius, trackPaint);
+
+    final progressPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      -math.pi / 2,
+      2 * math.pi * progress,
+      false,
+      progressPaint,
+    );
+
+    if (showThumb) {
+      final thumbAngle = -math.pi / 2 + 2 * math.pi * progress;
+      final thumbCenter = Offset(
+        center.dx + radius * math.cos(thumbAngle),
+        center.dy + radius * math.sin(thumbAngle),
+      );
+      final thumbShadowPaint = Paint()
+        ..color = Colors.black.withValues(alpha: 0.35)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+      canvas.drawCircle(thumbCenter, 9, thumbShadowPaint);
+      final thumbPaint = Paint()..color = Colors.white;
+      canvas.drawCircle(thumbCenter, 8, thumbPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _RingPainter oldDelegate) =>
+      oldDelegate.progress != progress || oldDelegate.showThumb != showThumb;
 }
