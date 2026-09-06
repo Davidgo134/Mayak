@@ -99,25 +99,6 @@ import 'frontend/widgets/theme_reveal.dart';
 import 'frontend/widgets/floating_call_badge.dart';
 import 'frontend/widgets/floating_video_note.dart';
 
-final ValueNotifier<RoundVideoPanelState?> roundVideoPanelState =
-    ValueNotifier<RoundVideoPanelState?>(null);
-
-class RoundVideoPanelState {
-  final bool isPlaying;
-  final double speed;
-  final VoidCallback onTogglePlay;
-  final VoidCallback onCycleSpeed;
-  final VoidCallback onClose;
-
-  const RoundVideoPanelState({
-    required this.isPlaying,
-    required this.speed,
-    required this.onTogglePlay,
-    required this.onCycleSpeed,
-    required this.onClose,
-  });
-}
-
 final api = Api();
 final accountModule = AccountModule(api);
 final messagesModule = MessagesModule(api);
