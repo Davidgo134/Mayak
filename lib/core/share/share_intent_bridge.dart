@@ -14,8 +14,8 @@ class ShareIntentBridge {
   ShareIntentBridge._();
   static final ShareIntentBridge instance = ShareIntentBridge._();
 
-  static const _method = MethodChannel('ru.komet.app/share');
-  static const _events = EventChannel('ru.komet.app/share_events');
+  static const _method = MethodChannel('ru.mayak.app/share');
+  static const _events = EventChannel('ru.mayak.app/share_events');
   static const _retryDelay = Duration(milliseconds: 300);
   static const _maxRetries = 100;
 

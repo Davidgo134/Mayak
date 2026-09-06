@@ -93,10 +93,30 @@ import 'frontend/screens/auth/login_screen.dart';
 import 'frontend/widgets/adaptive_shell.dart';
 import 'frontend/widgets/custom_notification.dart';
 import 'frontend/widgets/liquid_glass.dart';
+
 import 'frontend/widgets/small_spinner.dart';
 import 'frontend/widgets/theme_reveal.dart';
 import 'frontend/widgets/floating_call_badge.dart';
 import 'frontend/widgets/floating_video_note.dart';
+
+final ValueNotifier<RoundVideoPanelState?> roundVideoPanelState =
+    ValueNotifier<RoundVideoPanelState?>(null);
+
+class RoundVideoPanelState {
+  final bool isPlaying;
+  final double speed;
+  final VoidCallback onTogglePlay;
+  final VoidCallback onCycleSpeed;
+  final VoidCallback onClose;
+
+  const RoundVideoPanelState({
+    required this.isPlaying,
+    required this.speed,
+    required this.onTogglePlay,
+    required this.onCycleSpeed,
+    required this.onClose,
+  });
+}
 
 final api = Api();
 final accountModule = AccountModule(api);
@@ -1010,7 +1030,7 @@ class KometAppState extends State<KometApp>
             _rebuildThemesIfNeeded(lightScheme, darkScheme);
 
             return MaterialApp(
-              title: 'Komet',
+              title: 'Маяк',
               debugShowCheckedModeBanner: false,
               locale: _locale,
               themeMode: _effectiveThemeMode,

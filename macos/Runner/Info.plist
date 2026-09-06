@@ -32,7 +32,7 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>ru.komet.app</string>
+			<string>ru.mayak.app</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>komet</string>

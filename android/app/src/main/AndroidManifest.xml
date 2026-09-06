@@ -33,15 +33,15 @@
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation"/>
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="false"/>
     <application
-        android:label="Komet"
+        android:label="Маяк"
         android:name="${applicationName}"
         android:enableOnBackInvokedCallback="true"
         android:icon="@mipmap/ic_launcher">
         <activity
-            android:name="ru.komet.app.MainActivity"
+            android:name="ru.mayak.app.MainActivity"
             android:exported="true"
             android:icon="@mipmap/ic_launcher"
-            android:label="Komet"
+            android:label="Маяк"
             android:launchMode="singleTop"
             android:taskAffinity=""
             android:theme="@style/LaunchTheme"
@@ -94,12 +94,12 @@
             </intent-filter>
         </activity>
         <activity-alias
-            android:name="ru.komet.app.MinimalIcon"
+            android:name="ru.mayak.app.MinimalIcon"
             android:enabled="false"
             android:exported="true"
             android:icon="@mipmap/ic_launcher_minimal"
-            android:label="Komet"
-            android:targetActivity="ru.komet.app.MainActivity">
+            android:label="Маяк"
+            android:targetActivity="ru.mayak.app.MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>

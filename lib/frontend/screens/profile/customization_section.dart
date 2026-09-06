@@ -4,7 +4,6 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../../core/utils/haptics.dart';
 import '../../widgets/glossy_pill.dart';
 import '../../widgets/settings_card.dart';
-import 'app_icon_screen.dart';
 import 'appearance_screen.dart';
 import 'chat_background_screen.dart';
 import 'font_settings_screen.dart';
@@ -58,11 +57,6 @@ class _CustomizationSectionState extends State<CustomizationSection> {
       icon: Symbols.touch_app,
       title: 'Меню действий',
       builder: (context) => const MessageActionsScreen(),
-    ),
-    _CustomizationCategory(
-      icon: Symbols.apps,
-      title: 'Иконка приложения',
-      builder: (context) => const AppIconScreen(),
     ),
   ];
 

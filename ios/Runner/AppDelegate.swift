@@ -65,7 +65,7 @@ final class KometStreamHandler: NSObject, FlutterStreamHandler {
   }
 
   private func registerAppIcon(_ messenger: FlutterBinaryMessenger) {
-    method("ru.komet.app/app_icon", messenger) { call, result in
+    method("ru.mayak.app/app_icon", messenger) { call, result in
       switch call.method {
       case "getAppIcon":
         result(UIApplication.shared.alternateIconName)
@@ -100,7 +100,7 @@ final class KometStreamHandler: NSObject, FlutterStreamHandler {
   }
 
   private func registerVideo(_ messenger: FlutterBinaryMessenger) {
-    method("ru.komet.app/video", messenger) { call, result in
+    method("ru.mayak.app/video", messenger) { call, result in
       KometVideo.shared.handle(call, result: result)
     }
   }
@@ -108,7 +108,7 @@ final class KometStreamHandler: NSObject, FlutterStreamHandler {
   private func registerVideoNote(_ messenger: FlutterBinaryMessenger) {
     guard let textures = registrar(forPlugin: "KometVideoNote")?.textures() else { return }
 
-    method("ru.komet.app/video_note", messenger) { [weak self] call, result in
+    method("ru.mayak.app/video_note", messenger) { [weak self] call, result in
       guard let self = self else { return }
       switch call.method {
       case "permission":
@@ -152,7 +152,7 @@ final class KometStreamHandler: NSObject, FlutterStreamHandler {
   }
 
   private func registerScreen(_ messenger: FlutterBinaryMessenger) {
-    method("ru.komet.app/screen", messenger) { call, result in
+    method("ru.mayak.app/screen", messenger) { call, result in
       switch call.method {
       case "setKeepAwake":
         let enabled = ((call.arguments as? [String: Any])?["enabled"] as? NSNumber)?.boolValue ?? false
@@ -167,10 +167,10 @@ final class KometStreamHandler: NSObject, FlutterStreamHandler {
   }
 
   private func registerNotifications(_ messenger: FlutterBinaryMessenger) {
-    method("ru.komet.app/notifications", messenger) { call, result in
+    method("ru.mayak.app/notifications", messenger) { call, result in
       KometNotifications.shared.handle(call, result: result)
     }
-    events("ru.komet.app/notification_events", messenger) { sink in
+    events("ru.mayak.app/notification_events", messenger) { sink in
       KometNotifications.shared.attach(sink)
     }
   }

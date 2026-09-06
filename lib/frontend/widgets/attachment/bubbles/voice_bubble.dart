@@ -74,6 +74,8 @@ class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
     return data.codeUnits;
   }
 
+  StreamSubscription<TranscriptionResult>? _transcriptionSub;
+
   @override
   void initState() {
     super.initState();

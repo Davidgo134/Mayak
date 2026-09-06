@@ -1,4 +1,4 @@
-package ru.komet.app
+package ru.mayak.app
 
 import android.Manifest
 import android.app.Activity
@@ -20,7 +20,7 @@ import io.flutter.plugin.common.MethodChannel
 import java.util.concurrent.Executors
 
 object FkmChannel {
-    private const val NAME = "ru.komet.app/fkm"
+    private const val NAME = "ru.mayak.app/fkm"
     const val NOTIF_PERMS_REQUEST = 7713
 
     private val main = Handler(Looper.getMainLooper())

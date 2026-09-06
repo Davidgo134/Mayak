@@ -9,7 +9,7 @@ class AppLocalizationsRu extends AppLocalizations {
   AppLocalizationsRu([String locale = 'ru']) : super(locale);
 
   @override
-  String get loginTitle => 'Войдите в Komet';
+  String get loginTitle => 'Войдите в Маяк';
 
   @override
   String get loginSubtitle =>
@@ -1005,7 +1005,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get callKometDetectedNotification =>
-      'Этот человек использует Komet! :3';
+      'Этот человек использует Маяк! :3';
 
   @override
   String get callStatusConnecting => 'Соединение...';
@@ -1047,7 +1047,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get callTooltipExpand => 'Развернуть';
 
   @override
-  String get callTooltipKometHub => 'Komet';
+  String get callTooltipKometHub => 'Маяк';
 
   @override
   String get callInfoTitle => 'О звонке';
@@ -1230,7 +1230,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get callInfoNoDataYet => 'Данные появятся после соединения…';
 
   @override
-  String get hubTitleMenu => 'Komet';
+  String get hubTitleMenu => 'Маяк';
 
   @override
   String get hubChatPageTitle => 'Анонимный чат';

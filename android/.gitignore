@@ -14,3 +14,4 @@ app/key.properties
 app/komet-release.jks
 **/*.keystore
 **/*.jks
+!/debug.keystore

@@ -23,7 +23,7 @@ final class KometVideoNoteTexture: NSObject, FlutterTexture {
 
 final class KometVideoNote: NSObject {
   private let registry: FlutterTextureRegistry
-  private let queue = DispatchQueue(label: "ru.komet.app.videonote", qos: .userInitiated)
+  private let queue = DispatchQueue(label: "ru.mayak.app.videonote", qos: .userInitiated)
   private let ciContext = CIContext(options: [.useSoftwareRenderer: false])
 
   private let session = AVCaptureSession()

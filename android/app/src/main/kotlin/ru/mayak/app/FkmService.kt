@@ -1,4 +1,4 @@
-package ru.komet.app
+package ru.mayak.app
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -228,7 +228,7 @@ class FkmService : Service() {
 
 class FkmDisableReceiver : BroadcastReceiver() {
     companion object {
-        const val ACTION_DISABLE = "ru.komet.app.FKM_DISABLE"
+        const val ACTION_DISABLE = "ru.mayak.app.FKM_DISABLE"
     }
 
     override fun onReceive(ctx: Context, intent: Intent) {

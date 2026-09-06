@@ -1,4 +1,4 @@
-package ru.komet.app
+package ru.mayak.app
 
 import android.nfc.cardemulation.HostApduService
 import android.os.Bundle

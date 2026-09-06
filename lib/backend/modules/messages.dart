@@ -1019,6 +1019,32 @@ class MessagesModule {
     return _sendAndExtractMessageId(payload, 'Ошибка пересылки');
   }
 
+  static List<Map<String, dynamic>> _normalizedForwardAttaches(
+    List<MessageAttachment>? attachments,
+    List? fallback,
+  ) {
+    if (attachments != null && attachments.isNotEmpty) {
+      final normalized = attachments
+          .where((a) => a.type != AttachmentType.forward)
+          .map((a) => a.toMap())
+          .toList();
+      if (normalized.isNotEmpty) return normalized;
+
+      final forwarded = attachments.whereType<ForwardedMessageAttachment>().toList();
+      if (forwarded.length == 1) {
+        final nested = forwarded.first.originalAttachments
+            ?.map((a) => a.toMap())
+            .toList();
+        if (nested != null && nested.isNotEmpty) return nested;
+      }
+    }
+    return fallback
+            ?.whereType<Map>()
+            .map((a) => Map<String, dynamic>.from(a))
+            .toList() ??
+        const <Map<String, dynamic>>[];
+  }
+
   static CachedMessage buildForwardMessage({
     required int myId,
     required int targetChatId,
@@ -1040,6 +1066,15 @@ class MessagesModule {
     Map<String, dynamic> originalMsg;
     if (isForwardedSource) {
       originalMsg = Map<String, dynamic>.from(srcLink['message'] as Map);
+      final nestedAttaches = _normalizedForwardAttaches(
+        source.attachments,
+        originalMsg['attaches'] as List?,
+      );
+      originalMsg['attaches'] = nestedAttaches;
+      originalMsg['text'] = source.text ?? originalMsg['text'];
+      originalMsg['time'] ??= source.time;
+      originalMsg['sender'] ??= source.senderId;
+      originalMsg['id'] ??= int.tryParse(source.id) ?? source.id;
     } else {
       final originalType = srcPayload?['type']?.toString() ?? sourceChatType;
       originalMsg = {

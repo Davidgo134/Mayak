@@ -66,7 +66,7 @@ class VideoExportSpec {
 }
 
 class VideoTranscoder {
-  static const _channel = MethodChannel('ru.komet.app/video');
+  static const _channel = MethodChannel('ru.mayak.app/video');
 
   static bool get _native => Platform.isAndroid || Platform.isIOS;
 

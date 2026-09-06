@@ -1,4 +1,4 @@
-package ru.komet.app
+package ru.mayak.app
 
 import android.Manifest
 import android.content.Context
@@ -92,9 +92,12 @@ class VideoNoteRecorder(
 
     @Volatile private var recording = false
     @Volatile private var glReady = false
+    @Volatile private var torchEnabled = false
 
     private fun manager() =
         context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+
+    private var fpsRange: android.util.Range<Int>? = null
 
     private fun selectCamera(facing: Int): Boolean {
         val mgr = manager()
@@ -105,6 +108,7 @@ class VideoNoteRecorder(
                 lensFacing = facing
                 sensorOrientation =
                     ch.get(CameraCharacteristics.SENSOR_ORIENTATION) ?: 270
+                hasFlashHardware = ch.get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
                 val map = ch.get(
                     CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP,
                 )
@@ -234,8 +238,36 @@ class VideoNoteRecorder(
     }
 
     private var frameCount = 0
+    private var lastFrameNs = 0L
+    private var fpsWindowStartNs = 0L
+    private var fpsWindowFrames = 0
+    @Volatile private var cameraGeneration = 0
+    @Volatile private var awaitingFirstFrameAfterSwitch = false
 
     private fun onFrame() {
+        val nowNs = System.nanoTime()
+        if (lastFrameNs != 0L) {
+            val deltaMs = (nowNs - lastFrameNs) / 1_000_000.0
+            fpsWindowFrames++
+            if (fpsWindowStartNs == 0L) fpsWindowStartNs = nowNs
+            val windowMs = (nowNs - fpsWindowStartNs) / 1_000_000.0
+            if (windowMs >= 1000.0) {
+                val realFps = fpsWindowFrames * 1000.0 / windowMs
+                Log.i(
+                    tag,
+                    "FPS_DIAG real_fps=${"%.1f".format(realFps)} " +
+                        "last_frame_delta_ms=${"%.1f".format(deltaMs)} " +
+                        "target_range=$fpsRange cam_size=$camSize",
+                )
+                fpsWindowFrames = 0
+                fpsWindowStartNs = nowNs
+            }
+        }
+        lastFrameNs = nowNs
+        if (awaitingFirstFrameAfterSwitch) {
+            awaitingFirstFrameAfterSwitch = false
+            Log.i(tag, "switch first frame arrived generation=$cameraGeneration")
+        }
         val st = camTexture ?: return
         val prog = program ?: return
         val w = previewWindow ?: return
@@ -289,6 +321,18 @@ class VideoNoteRecorder(
                 override fun onError(device: CameraDevice, error: Int) {
                     device.close(); cameraDevice = null
                     result.error("CAMERA_ERROR", "code $error", null)
+                }
+
+                // Вызывается, когда close() ДЕЙСТВИТЕЛЬНО завершил
+                // освобождение устройства на уровне HAL -- единственный
+                // надёжный, документированный сигнал для switchCamera(),
+                // что теперь можно безопасно открывать новую камеру без
+                // гонки "camera device already in use".
+                override fun onClosed(device: CameraDevice) {
+                    pendingCloseCallback?.let {
+                        pendingCloseCallback = null
+                        it()
+                    }
                 }
             },
             camHandler,
@@ -495,6 +539,10 @@ class VideoNoteRecorder(
         if (!recording) {
             result.error("NOT_RECORDING", "no active recording", null); return
         }
+        if (torchEnabled) {
+            torchEnabled = false
+            applyTorchToSession(false)
+        }
         recording = false
         glHandler!!.post {
             try {
@@ -515,6 +563,43 @@ class VideoNoteRecorder(
                 Log.e(tag, "stop failed", e)
                 result.error("STOP_FAILED", e.message, null)
             }
+        }
+    }
+
+    fun toggleTorch(on: Boolean, result: MethodChannel.Result) {
+        if (!hasFlashHardware || lensFacing != CameraCharacteristics.LENS_FACING_BACK) {
+            torchEnabled = false
+            result.success(false)
+            return
+        }
+        torchEnabled = on
+        camHandler?.post {
+            applyTorchToSession(on)
+            result.success(on)
+        }
+    }
+
+    private fun applyTorchToSession(on: Boolean) {
+        val device = cameraDevice ?: return
+        val s = session ?: return
+        val camSurface = camInputSurface ?: return
+        try {
+            val template = if (recording) CameraDevice.TEMPLATE_RECORD else CameraDevice.TEMPLATE_PREVIEW
+            val req = device.createCaptureRequest(template)
+            req.addTarget(camSurface)
+            if (recording) {
+                recorderSurface?.let { req.addTarget(it) }
+            }
+            fpsRange?.let { req.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, it) }
+            if (on) {
+                req.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
+                req.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_TORCH)
+            } else {
+                req.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_OFF)
+            }
+            s.setRepeatingRequest(req.build(), null, camHandler)
+        } catch (e: Exception) {
+            Log.w(tag, "applyTorchToSession: ${e.message}")
         }
     }
 
@@ -547,6 +632,7 @@ class VideoNoteRecorder(
 
     fun dispose() {
         recording = false
+        torchEnabled = false
         try { session?.close() } catch (_: Exception) {}
         session = null
         glHandler?.post {
@@ -566,10 +652,269 @@ class VideoNoteRecorder(
         camThread?.quitSafely(); camThread = null; camHandler = null
     }
 
-    @Suppress("DEPRECATION")
+    @Volatile private var switching = false
+
+    fun switchCamera(rawResult: MethodChannel.Result) {
+        val result = OnceResult(rawResult)
+        if (switching) {
+            result.error("SWITCH_BUSY", "switch already in progress", null)
+            return
+        }
+        switching = true
+
+        val newFacing = if (lensFacing == CameraCharacteristics.LENS_FACING_FRONT) {
+            CameraCharacteristics.LENS_FACING_BACK
+        } else {
+            CameraCharacteristics.LENS_FACING_FRONT
+        }
+        if (!selectCamera(newFacing)) {
+            switching = false
+            result.error("NO_CAMERA", "requested camera not found", null)
+            return
+        }
+        val wasRecording = recording
+
+        // Watchdog остаётся как последний рубеж защиты от совершенно
+        // непредвиденных зависаний (например, если сама HAL никогда не
+        // вызовет ни onClosed(), ни onOpened(), ни onError() -- баг
+        // конкретного производителя чипа). В штатном режиме он никогда не
+        // должен сработать, потому что теперь мы не гадаем с задержками, а
+        // ждём настоящее событие о закрытии камеры.
+        val watchdog = Runnable {
+            if (switching) {
+                switching = false
+                Log.e(tag, "switchCamera watchdog fired -- forcing failure")
+                result.error("SWITCH_TIMEOUT", "camera switch timed out", null)
+            }
+        }
+        camHandler?.postDelayed(watchdog, 4000)
+
+        camHandler?.post {
+            val wasTorchOn = torchEnabled
+            torchEnabled = false
+            if (wasTorchOn) {
+                // Физически гасим фонарик на СТАРОЙ сессии перед закрытием,
+                // а не просто сбрасываем флаг -- иначе на части устройств
+                // светодиод может оставаться включённым до полного
+                // освобождения камеры HAL.
+                try { applyTorchToSession(false) } catch (_: Exception) {}
+            }
+
+            val oldSession = session
+            session = null
+            val oldDevice = cameraDevice
+            cameraDevice = null
+
+            // Ресайз буфера SurfaceTexture под новую камеру -- независимая
+            // GL-операция, не связанная с жизненным циклом CameraDevice.
+            glHandler?.post {
+                try {
+                    camTexture?.setDefaultBufferSize(camSize.width, camSize.height)
+                } catch (e: Exception) {
+                    Log.w(tag, "switchCamera buffer resize: ${e.message}")
+                }
+            }
+
+            // Camera2 API документирует единственный надёжный способ узнать,
+            // что камера ДЕЙСТВИТЕЛЬНО освобождена HAL: дождаться onClosed()
+            // её собственного StateCallback. close() не блокирует и не
+            // гарантирует немедленное освобождение -- раньше мы либо звали
+            // openCamera() сразу (гонка "device already in use"), либо
+            // угадывали фиксированную задержку (150ms -- иногда мало,
+            // иногда с запасом), либо слепо перебирали retry с нарастающей
+            // паузой. Все эти варианты СИМПТОМАТИЧНЫ: они либо ловят гонку
+            // через раз, либо просто ждут "на всякий случай" дольше, чем
+            // нужно. Правильное решение -- подписаться на onClosed() того
+            // самого device, который мы закрываем, и открывать новую камеру
+            // из этого колбека, детерминированно.
+            if (oldDevice == null) {
+                cameraGeneration += 1
+                awaitingFirstFrameAfterSwitch = true
+                openCameraForSwitch(result, wasRecording, watchdog)
+                return@post
+            }
+
+            var closedHandled = false
+            val nextGeneration = cameraGeneration + 1
+            val onOldDeviceClosed: () -> Unit = {
+                if (!closedHandled) {
+                    closedHandled = true
+                    cameraGeneration = nextGeneration
+                    awaitingFirstFrameAfterSwitch = true
+                    frameCount = 0
+                    lastFrameNs = 0L
+                    fpsWindowStartNs = 0L
+                    fpsWindowFrames = 0
+                    Log.i(tag, "switch old camera fully closed; opening generation=$cameraGeneration")
+                    openCameraForSwitch(result, wasRecording, watchdog)
+                }
+            }
+
+            pendingCloseCallback = onOldDeviceClosed
+            try {
+                oldSession?.close()
+            } catch (_: Exception) {}
+
+            try {
+                oldDevice.close()
+            } catch (_: Exception) {
+                pendingCloseCallback = null
+                onOldDeviceClosed()
+            }
+        }
+    }
+
+    // StateCallback старой камеры (см. selectCamera/openCamera) вызывает
+    // это поле из своего onClosed(), если оно установлено -- так
+    // switchCamera() детерминированно узнаёт о реальном освобождении камеры
+    // вместо угадывания задержки.
+    @Volatile private var pendingCloseCallback: (() -> Unit)? = null
+
+    private fun openCameraForSwitch(
+        result: OnceResult,
+        wasRecording: Boolean,
+        watchdog: Runnable,
+    ) {
+        val expectedGeneration = cameraGeneration
+        openCameraForSwitchAttempt(
+            onSuccess = { payload ->
+                val confirmFirstFrame = Runnable {
+                    if (!switching) return@Runnable
+                    if (cameraGeneration != expectedGeneration) return@Runnable
+                    if (awaitingFirstFrameAfterSwitch) {
+                        switching = false
+                        camHandler?.removeCallbacks(watchdog)
+                        Log.e(tag, "switch failed: session reopened but no first frame arrived")
+                        result.error("SWITCH_NO_FRAME", "camera reopened but preview frame did not arrive", null)
+                    } else {
+                        camHandler?.removeCallbacks(watchdog)
+                        switching = false
+                        result.success(payload)
+                    }
+                }
+                camHandler?.postDelayed(confirmFirstFrame, 700)
+            },
+            onError = { code, message ->
+                camHandler?.removeCallbacks(watchdog)
+                switching = false
+                awaitingFirstFrameAfterSwitch = false
+                Log.e(tag, "switch open failed ($code: $message)")
+                result.error(code, message, null)
+            },
+            wasRecording = wasRecording,
+        )
+    }
+
+    @Suppress("MissingPermission")
+    private fun openCameraForSwitchAttempt(
+        onSuccess: (Map<String, Any?>) -> Unit,
+        onError: (String, String?) -> Unit,
+        wasRecording: Boolean,
+    ) {
+        try {
+            manager().openCamera(
+                cameraId,
+                object : CameraDevice.StateCallback() {
+                    override fun onOpened(device: CameraDevice) {
+                        Log.i(tag, "camera reopened (switch) $cameraId")
+                        cameraDevice = device
+                        val camSurface = camInputSurface
+                        if (camSurface == null) {
+                            onError("SWITCH_FAILED", "no cam input surface")
+                            return
+                        }
+                        val surfaces = if (wasRecording && recorderSurface != null) {
+                            listOf(camSurface, recorderSurface!!)
+                        } else {
+                            listOf(camSurface)
+                        }
+                        try {
+                            createSession(
+                                surfaces,
+                                onReady = { s ->
+                                    session = s
+                                    val req = device.createCaptureRequest(
+                                        if (wasRecording) {
+                                            CameraDevice.TEMPLATE_RECORD
+                                        } else {
+                                            CameraDevice.TEMPLATE_PREVIEW
+                                        },
+                                    )
+                                    req.addTarget(camSurface)
+                                    if (wasRecording && recorderSurface != null) {
+                                        req.addTarget(recorderSurface!!)
+                                    }
+                                    fpsRange?.let {
+                                        req.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, it)
+                                        Log.i(tag, "FPS_DIAG applied switch fpsRange=$it")
+                                    }
+                                    s.setRepeatingRequest(req.build(), null, camHandler)
+                                    Log.i(tag, "switch session configured, recording=$wasRecording")
+                                    onSuccess(
+                                        mapOf(
+                                            "isFront" to (lensFacing == CameraCharacteristics.LENS_FACING_FRONT),
+                                            "hasTorch" to (hasFlashHardware && lensFacing == CameraCharacteristics.LENS_FACING_BACK),
+                                        ),
+                                    )
+                                },
+                                onFailed = {
+                                    Log.e(tag, "switch session config failed")
+                                    onError("SWITCH_FAILED", "session config failed")
+                                },
+                            )
+                        } catch (e: Exception) {
+                            Log.e(tag, "switch session failed", e)
+                            onError("SWITCH_FAILED", e.message)
+                        }
+                    }
+
+                    override fun onDisconnected(device: CameraDevice) {
+                        device.close(); cameraDevice = null
+                        onError("CAMERA_DISCONNECTED", "camera disconnected during switch")
+                    }
+
+                    override fun onError(device: CameraDevice, error: Int) {
+                        device.close(); cameraDevice = null
+                        // "Camera in use" (ERROR_CAMERA_IN_USE=4) означает,
+                        // что HAL всё ещё считает прошлую камеру занятой,
+                        // несмотря на то что мы дождались её onClosed() --
+                        // единственный оставшийся вариант это редкая гонка
+                        // на уровне драйвера, а не наша логика. Одна
+                        // короткая повторная попытка (без бесконечного
+                        // retry-цикла) покрывает этот редкий случай.
+                        if (error == CameraDevice.StateCallback.ERROR_CAMERA_IN_USE) {
+                            Log.w(tag, "switch open: camera in use, one retry in 250ms")
+                            camHandler?.postDelayed({
+                                openCameraForSwitchAttempt(onSuccess, onError, wasRecording)
+                            }, 250)
+                        } else {
+                            onError("CAMERA_ERROR", "code $error")
+                        }
+                    }
+
+                    // Тот же детерминированный механизм ожидания реального
+                    // закрытия устройства работает и для камеры, открытой
+                    // через switch -- следующий switchCamera() снова
+                    // дождётся именно этого onClosed(), а не гадает.
+                    override fun onClosed(device: CameraDevice) {
+                        pendingCloseCallback?.let {
+                            pendingCloseCallback = null
+                            it()
+                        }
+                    }
+                },
+                camHandler,
+            )
+        } catch (e: Exception) {
+            Log.e(tag, "openCameraForSwitch failed", e)
+            onError("SWITCH_FAILED", e.message)
+        }
+    }
+
     private fun createSession(
         surfaces: List<Surface>,
         onReady: (CameraCaptureSession) -> Unit,
+        onFailed: (() -> Unit)? = null,
     ) {
         val device = cameraDevice ?: return
         device.createCaptureSession(
@@ -578,6 +923,13 @@ class VideoNoteRecorder(
                 override fun onConfigured(s: CameraCaptureSession) = onReady(s)
                 override fun onConfigureFailed(s: CameraCaptureSession) {
                     Log.e(tag, "session config failed")
+                    // Раньше эта ошибка ТОЛЬКО логировалась и никак не
+                    // сообщалась вызывающему коду -- если конфигурация
+                    // сессии проваливалась (что случается, когда камера
+                    // ещё не до конца освободилась предыдущим владельцем),
+                    // весь вызов switchCamera/init просто зависал без
+                    // ответа Dart-стороне.
+                    onFailed?.invoke()
                 }
             },
             camHandler,

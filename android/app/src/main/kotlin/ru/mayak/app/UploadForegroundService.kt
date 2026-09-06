@@ -1,4 +1,4 @@
-package ru.komet.app
+package ru.mayak.app
 
 import android.app.*
 import android.content.Intent
@@ -13,9 +13,9 @@ class UploadForegroundService : Service() {
     companion object {
         const val CHANNEL_ID = "komet_upload"
         const val NOTIFICATION_ID = 9001
-        const val ACTION_START  = "ru.komet.app.UPLOAD_START"
-        const val ACTION_UPDATE = "ru.komet.app.UPLOAD_UPDATE"
-        const val ACTION_STOP   = "ru.komet.app.UPLOAD_STOP"
+        const val ACTION_START  = "ru.mayak.app.UPLOAD_START"
+        const val ACTION_UPDATE = "ru.mayak.app.UPLOAD_UPDATE"
+        const val ACTION_STOP   = "ru.mayak.app.UPLOAD_STOP"
         const val EXTRA_TITLE = "title"
         const val EXTRA_BODY = "body"
         const val EXTRA_PROGRESS = "progress"
