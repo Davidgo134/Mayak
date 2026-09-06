@@ -13,6 +13,7 @@ import 'select_country_screen.dart';
 import 'phone_input_formatter.dart';
 import 'proxy_settings_sheet.dart';
 import 'server_settings_sheet.dart';
+import '../profile/spoof_screen.dart';
 import '../profile/debug_menu_screen.dart';
 import '../digital_id/digital_id_web_screen.dart';
 import '../../widgets/custom_notification.dart';
@@ -793,7 +794,11 @@ class _LoginScreenState extends State<LoginScreen> {
                                 GestureDetector(
                                   behavior: HitTestBehavior.opaque,
                                   onTap: _onLogoTap,
-                                  child: const SizedBox(height: 80, width: 80),
+                                  child: Image.asset(
+                                    'assets/komet.png',
+                                    height: 80,
+                                    color: cs.onSurface,
+                                  ),
                                 ),
                                 const SizedBox(height: 16),
                                 Text(
