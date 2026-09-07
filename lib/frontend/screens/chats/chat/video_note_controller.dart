@@ -12,6 +12,7 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../widgets/glossy_pill.dart';
 
+import '../../../../core/config/app_composer_background.dart';
 import '../../../../core/config/app_video_note_quality.dart';
 import '../../../../core/media/native_video_note_recorder.dart';
 import '../../../../core/utils/haptics.dart';
@@ -377,6 +378,7 @@ class _VideoNoteRecordingLayerState extends State<VideoNoteRecordingLayer>
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final controller = widget.controller;
+    final frost = ComposerMaterial.isFrost(AppComposerBackground.current.value);
     return Positioned.fill(
       child: AnimatedBuilder(
         animation: _reveal,
@@ -387,17 +389,21 @@ class _VideoNoteRecordingLayerState extends State<VideoNoteRecordingLayer>
             children: [
               Positioned.fill(
                 child: IgnorePointer(
-                  child: ClipRect(
-                    child: BackdropFilter(
-                      filter: ui.ImageFilter.blur(
-                        sigmaX: _maxBlur * t,
-                        sigmaY: _maxBlur * t,
-                      ),
-                      child: ColoredBox(
-                        color: Colors.black.withValues(alpha: 0.35 * t),
-                      ),
-                    ),
-                  ),
+                  child: frost
+                      ? ClipRect(
+                          child: BackdropFilter(
+                            filter: ui.ImageFilter.blur(
+                              sigmaX: _maxBlur * t,
+                              sigmaY: _maxBlur * t,
+                            ),
+                            child: ColoredBox(
+                              color: Colors.black.withValues(alpha: 0.35 * t),
+                            ),
+                          ),
+                        )
+                      : ColoredBox(
+                          color: Colors.black.withValues(alpha: 0.55 * t),
+                        ),
                 ),
               ),
               const Positioned.fill(
@@ -492,8 +498,10 @@ class _CameraControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final frost = ComposerMaterial.isFrost(AppComposerBackground.current.value);
     return GlossyPill(
-      color: cs.surfaceContainerHighest,
+      color: frost ? AppFrost.glassTint(cs) : cs.surfaceContainerHighest,
+      blurSigma: frost ? AppFrost.panelSigma : null,
       borderRadius: BorderRadius.circular(26),
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       depth: 10,
