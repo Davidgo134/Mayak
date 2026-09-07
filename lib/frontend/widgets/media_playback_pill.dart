@@ -1,7 +1,11 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../backend/modules/messages.dart';
+import '../../core/config/app_composer_background.dart';
+import '../../core/config/app_frost.dart';
 import '../../core/media/media_playback.dart';
 import '../../core/utils/format.dart';
 import '../../core/utils/haptics.dart';
@@ -206,12 +210,12 @@ class _PillSurface extends StatelessWidget {
         : (ContactCache.get(senderId) ?? '$senderId');
     final clock = formatClock(DateTime.fromMillisecondsSinceEpoch(time));
 
-    return Padding(
-      padding: margin,
-      child: ClipRRect(
-        borderRadius: radius,
-        child: Material(
-          color: cs.surfaceContainerHigh,
+    return ValueListenableBuilder<ComposerBackground>(
+      valueListenable: AppComposerBackground.current,
+      builder: (context, background, _) {
+        final frost = ComposerMaterial.isFrost(background);
+        final content = Material(
+          color: frost ? AppFrost.blurPanelTint(cs) : cs.surfaceContainerHigh,
           child: InkWell(
             onTap: onOpen,
             child: SizedBox(
@@ -271,8 +275,23 @@ class _PillSurface extends StatelessWidget {
               ),
             ),
           ),
-        ),
-      ),
+        );
+        return Padding(
+          padding: margin,
+          child: ClipRRect(
+            borderRadius: radius,
+            child: frost
+                ? BackdropFilter(
+                    filter: ui.ImageFilter.blur(
+                      sigmaX: AppFrost.panelSigma,
+                      sigmaY: AppFrost.panelSigma,
+                    ),
+                    child: content,
+                  )
+                : content,
+          ),
+        );
+      },
     );
   }
 }
