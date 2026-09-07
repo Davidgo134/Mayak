@@ -11,6 +11,7 @@ import 'package:komet/core/config/app_colors.dart';
 import 'package:komet/core/config/app_composer_background.dart';
 import 'package:komet/core/config/app_composer_style.dart';
 import 'package:komet/core/config/app_frost.dart';
+import 'package:komet/core/utils/haptics.dart';
 import 'package:komet/frontend/screens/chats/chat/upload_status.dart';
 import 'package:komet/frontend/screens/chats/chat/video_note_controller.dart';
 import 'package:komet/frontend/screens/chats/chat/voice_record_controller.dart';
@@ -529,23 +530,31 @@ class ComposerInputBar extends StatelessWidget {
                                                     ? note.toggleMode
                                                     : null,
                                                 onLongPressStart: voiceEnabled
-                                                    ? (_) => videoMode
-                                                          ? note.start()
+                                                    ? (d) => videoMode
+                                                          ? _showNoteCameraMenu(
+                                                              context,
+                                                              d,
+                                                              note,
+                                                            )
                                                           : voiceRec.start()
                                                     : null,
                                                 onLongPressMoveUpdate:
                                                     voiceEnabled
                                                     ? (d) => videoMode
-                                                          ? note.handleDrag(
-                                                              d.offsetFromOrigin,
-                                                            )
+                                                          ? (note.isRecording.value
+                                                                ? note.handleDrag(
+                                                                    d.offsetFromOrigin,
+                                                                  )
+                                                                : null)
                                                           : voiceRec.handleDrag(
                                                               d.offsetFromOrigin,
                                                             )
                                                     : null,
                                                 onLongPressEnd: voiceEnabled
                                                     ? (_) => videoMode
-                                                          ? note.handleEnd()
+                                                          ? (note.isRecording.value
+                                                                ? note.handleEnd()
+                                                                : null)
                                                           : voiceRec.handleEnd()
                                                     : null,
                                                 child: visual,
@@ -1088,6 +1097,48 @@ class ComposerInputBar extends StatelessWidget {
       ),
     );
   }
+}
+
+void _showNoteCameraMenu(
+  BuildContext context,
+  LongPressStartDetails details,
+  VideoNoteController note,
+) {
+  Haptics.tap();
+  final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
+  if (overlay == null) return;
+  final position = RelativeRect.fromRect(
+    Rect.fromCenter(center: details.globalPosition, width: 1, height: 1),
+    Offset.zero & overlay.size,
+  );
+  showMenu<bool>(
+    context: context,
+    position: position,
+    items: [
+      PopupMenuItem<bool>(
+        value: true,
+        child: Row(
+          children: [
+            Icon(Symbols.face, size: 22),
+            const SizedBox(width: 12),
+            Text('Фронтальная'),
+          ],
+        ),
+      ),
+      PopupMenuItem<bool>(
+        value: false,
+        child: Row(
+          children: [
+            Icon(Symbols.photo_camera, size: 22),
+            const SizedBox(width: 12),
+            Text('Основная'),
+          ],
+        ),
+      ),
+    ],
+  ).then((front) {
+    if (front != null) note.startWithCamera(front);
+  });
 }
 
 class _AttachButton extends StatelessWidget {

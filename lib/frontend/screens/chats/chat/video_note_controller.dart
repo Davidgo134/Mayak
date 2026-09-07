@@ -204,6 +204,15 @@ class VideoNoteController {
     }
   }
 
+  Future<void> startWithCamera(bool front) async {
+    if (_isRecording.value) return;
+    _frontOverride = front;
+    AppVideoNoteRearCamera.current.value = !front;
+    await _disposeCamera();
+    await start();
+    if (_isRecording.value) _locked.value = true;
+  }
+
   Future<String?> _stubClip() async {
     try {
       final data = await rootBundle.load('assets/debug/fake_video_note.mp4');
