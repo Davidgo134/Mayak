@@ -202,7 +202,7 @@ class DebugFeatureTogglesSection extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'botId (digital): ${did ?? '— не найден: сервер не прислал или иконка не сматчилась'}' + chr(10)
+                      'botId (digital): ${did ?? '— не найден: сервер не прислал или иконка не сматчилась'}\n'
                       'botId (sferum): ${sferum ?? '— не найден'}',
                       style: TextStyle(
                         color: cs.onSurfaceVariant,
