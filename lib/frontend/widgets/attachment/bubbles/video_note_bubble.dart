@@ -58,6 +58,11 @@ class VideoNoteBubble extends StatefulWidget {
   /// paused round video stays large until you tap elsewhere).
   static void collapseOutside(Offset globalPosition) =>
       _VideoNoteBubbleState._collapseOutside(globalPosition);
+
+  /// Force-collapses the currently expanded note regardless of tap
+  /// position or playback state (used by the top now-playing pill's
+  /// close button once it has already stopped playback).
+  static void collapseActive() => _VideoNoteBubbleState._collapseActive();
 }
 
 class _VideoNoteBubbleState extends State<VideoNoteBubble>
@@ -335,7 +340,10 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
     final controller = _controller;
     if (controller == null) return;
     final other = _playingNote;
-    if (other != null && other != this) await other._pause();
+    if (other != null && other != this) {
+      await other._pause();
+      other._collapse();
+    }
     _playingNote = this;
     _expandedNote = this;
     _PreviewPool.pin(this);
@@ -358,6 +366,12 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
     if (_expandedNote == this) _expandedNote = null;
     _expand.reverse();
     if (mounted) setState(() {});
+  }
+
+  static void _collapseActive() {
+    final note = _expandedNote;
+    if (note == null || !note.mounted) return;
+    note._collapse();
   }
 
   static void _collapseOutside(Offset globalPosition) {

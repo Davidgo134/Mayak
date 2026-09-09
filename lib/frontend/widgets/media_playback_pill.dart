@@ -11,6 +11,7 @@ import '../../core/utils/format.dart';
 import '../../core/utils/haptics.dart';
 import '../../l10n/app_localizations.dart';
 import 'max_link_nav.dart';
+import 'attachment/bubbles/video_note_bubble.dart';
 
 class MediaPlaybackPill extends StatelessWidget {
   const MediaPlaybackPill({
@@ -149,7 +150,10 @@ class _VideoNotePill extends StatelessWidget {
               ? track.controller.pause()
               : track.controller.play(),
           onSpeed: playback.cycleVideoNoteSpeed,
-          onClose: playback.closeVideoNote,
+          onClose: () {
+            playback.closeVideoNote();
+            VideoNoteBubble.collapseActive();
+          },
           onOpen: () => openChatAtMessage(
             context,
             track.chatId,
