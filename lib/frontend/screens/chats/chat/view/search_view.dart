@@ -8,7 +8,7 @@ import 'package:mayak/core/config/app_chat_chrome.dart';
 import 'package:mayak/core/utils/format.dart';
 import 'package:mayak/frontend/widgets/animated_lottie_icon.dart';
 import 'package:mayak/frontend/widgets/glossy_pill.dart';
-import 'package:mayak/frontend/widgets/komet_avatar.dart';
+import 'package:mayak/frontend/widgets/mayak_avatar.dart';
 import 'package:mayak/frontend/widgets/small_spinner.dart';
 import 'package:mayak/frontend/screens/chats/chat/chat_search_controller.dart';
 import 'package:mayak/frontend/screens/chats/chat/message_search_result.dart';
@@ -212,7 +212,7 @@ class SearchOverlay extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            KometAvatar(
+            MayakAvatar(
               name: name,
               imageUrl: senderAvatar(r.senderId),
               size: 44,

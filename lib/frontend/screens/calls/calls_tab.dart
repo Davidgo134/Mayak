@@ -8,9 +8,10 @@ import '../../../core/storage/app_database.dart';
 import '../../../core/utils/format.dart';
 import '../../../core/calls/call_controller.dart';
 import '../../../backend/modules/calls.dart';
-import '../../widgets/komet_avatar.dart';
+import '../../widgets/mayak_avatar.dart';
 import '../../widgets/connection_status.dart';
 import '../../widgets/reload_on_reconnect.dart';
+import '../../widgets/swipe_route.dart';
 import '../../widgets/custom_notification.dart';
 import '../../widgets/chat_menu_overlay.dart';
 import '../../widgets/small_spinner.dart';
@@ -183,7 +184,7 @@ class _CallsTabState extends State<CallsTab>
                         color: cs.onPrimaryContainer,
                         size: 26,
                       )
-                    : KometAvatar(
+                    : MayakAvatar(
                         name: call.name,
                         imageUrl: call.avatarUrl,
                         size: 48,
@@ -309,7 +310,7 @@ class _CallsTabState extends State<CallsTab>
     final active = CallController.instance.activeSession;
     if (active != null) {
       await navigator.push(
-        MaterialPageRoute(
+        SwipeRoute(
           builder: (_) => CallScreen(
             name: call.name,
             avatarUrl: avatarUrl,
@@ -323,7 +324,7 @@ class _CallsTabState extends State<CallsTab>
       final session = await CallController.instance.startOutgoing(call.peerId);
       if (!mounted) return;
       await navigator.push(
-        MaterialPageRoute(
+        SwipeRoute(
           builder: (_) => CallScreen(
             name: call.name,
             avatarUrl: avatarUrl,
@@ -402,7 +403,7 @@ class _CallsTabState extends State<CallsTab>
       final session = await controller.joinByLink(created.joinToken);
       if (!mounted) return;
       await navigator.push(
-        MaterialPageRoute(
+        SwipeRoute(
           builder: (_) =>
               CallScreen(name: name, session: session, isGroup: true),
         ),

@@ -9,7 +9,7 @@ import '../../core/utils/text_entities.dart';
 import '../../main.dart' show api;
 import 'chat_menu_overlay.dart';
 import 'custom_notification.dart';
-import 'komet_avatar.dart';
+import 'mayak_avatar.dart';
 import 'max_link_handler.dart';
 import 'small_spinner.dart';
 
@@ -184,7 +184,7 @@ class _OwnerRow extends StatelessWidget {
     final name = (resolved == null || resolved.isEmpty) ? phone : resolved;
     return Row(
       children: [
-        KometAvatar(name: name, size: 36, imageUrl: found.avatarUrl),
+        MayakAvatar(name: name, size: 36, imageUrl: found.avatarUrl),
         const SizedBox(width: 12),
         Expanded(
           child: Column(

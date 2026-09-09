@@ -8,7 +8,7 @@ import '../../core/storage/app_database.dart';
 import '../../core/storage/token_storage.dart';
 import '../../core/utils/haptics.dart';
 import 'animated_overlay_popup.dart';
-import 'komet_avatar.dart';
+import 'mayak_avatar.dart';
 import '../../core/config/app_frost.dart';
 
 class AccountSwitcherController extends ChangeNotifier {
@@ -355,7 +355,7 @@ class _AccountRow extends StatelessWidget {
                         )
                       : null,
                 ),
-                child: KometAvatar(
+                child: MayakAvatar(
                   name: fullName,
                   imageUrl: profile.baseUrl,
                   size: 36,

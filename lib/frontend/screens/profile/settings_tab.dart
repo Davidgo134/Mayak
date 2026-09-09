@@ -21,7 +21,7 @@ import '../../widgets/animated_slash_icon.dart';
 import '../../widgets/avatar_history_screen.dart';
 import '../../widgets/connection_status.dart';
 import '../../widgets/info_action_sheet.dart';
-import '../../widgets/komet_avatar.dart';
+import '../../widgets/mayak_avatar.dart';
 import '../../widgets/profile_header_scroll.dart';
 import '../../widgets/settings_card.dart';
 import '../../widgets/sheet_helpers.dart';
@@ -43,7 +43,7 @@ import 'devices_screen.dart';
 import '../../widgets/spectrum_tint.dart';
 import 'edit_profile_screen.dart';
 import 'info_screen.dart';
-import 'komet_settings_screen.dart';
+import 'mayak_settings_screen.dart';
 import 'notifications_screen.dart';
 import 'profile_qr_sheet.dart';
 import 'security_screen.dart';
@@ -944,7 +944,7 @@ class _SettingsTabState extends State<SettingsTab> with SpectrumSurface {
             width: 2.5,
           ),
         ),
-        child: KometAvatar(name: name, size: 88, fontSize: 32),
+        child: MayakAvatar(name: name, size: 88, fontSize: 32),
       );
     }
     final letterFallback = ColoredBox(

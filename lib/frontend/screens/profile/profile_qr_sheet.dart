@@ -5,7 +5,7 @@ import '../../../core/config/app_shape.dart';
 import '../../../core/links/profile_link.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../widgets/custom_notification.dart';
-import '../../widgets/komet_avatar.dart';
+import '../../widgets/mayak_avatar.dart';
 import '../../widgets/qr_code_view.dart';
 import '../../widgets/sheet_helpers.dart';
 import '../../widgets/small_spinner.dart';
@@ -152,7 +152,7 @@ class _ProfileQrSheetState extends State<_ProfileQrSheet> {
           color: _cardColor,
           shape: BoxShape.circle,
         ),
-        child: KometAvatar(
+        child: MayakAvatar(
           name: widget.name,
           imageUrl: widget.avatarUrl,
           size: qrSize * 0.24 - 8,

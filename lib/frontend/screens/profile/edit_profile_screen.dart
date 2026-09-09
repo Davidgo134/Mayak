@@ -7,7 +7,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../../main.dart' show accountModule, fileUploader, MayakApp;
 import '../../widgets/connection_status.dart';
 import '../../widgets/custom_notification.dart';
-import '../../widgets/komet_avatar.dart';
+import '../../widgets/mayak_avatar.dart';
 import '../../widgets/small_spinner.dart';
 
 class EditProfileScreen extends StatefulWidget {
@@ -210,7 +210,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             width: 2.5,
                           ),
                         ),
-                        child: KometAvatar(
+                        child: MayakAvatar(
                           name: _firstNameController.text,
                           imageUrl: _avatarUrl,
                           size: 88,

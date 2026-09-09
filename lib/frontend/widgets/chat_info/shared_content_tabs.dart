@@ -22,7 +22,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../../models/attachment.dart';
 import '../../screens/chats/chat_screen.dart';
 import '../custom_notification.dart';
-import '../komet_avatar.dart';
+import '../mayak_avatar.dart';
 import '../photo_viewer.dart';
 import '../reload_on_reconnect.dart';
 import '../small_spinner.dart';
@@ -457,7 +457,7 @@ class _CommonChatsTabState extends State<CommonChatsTab>
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Row(
           children: [
-            KometAvatar(
+            MayakAvatar(
               name: chat.title,
               imageUrl: chat.iconUrl,
               size: 46,

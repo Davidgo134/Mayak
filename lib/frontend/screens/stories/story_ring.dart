@@ -6,7 +6,7 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../core/utils/haptics.dart';
 import '../../../models/story.dart';
-import '../../widgets/komet_avatar.dart';
+import '../../widgets/mayak_avatar.dart';
 import 'story_owner_info.dart';
 
 class StoryAvatarRing extends StatelessWidget {
@@ -135,7 +135,7 @@ class _StoryRingState extends State<StoryRing> {
                       diameter: diameter,
                       total: widget.preview.totalCount,
                       read: widget.preview.readCount,
-                      child: KometAvatar(
+                      child: MayakAvatar(
                         name: name == '…' ? '?' : name,
                         size: diameter,
                         imageUrl: info?.avatarUrl,
@@ -335,7 +335,7 @@ class _StorySelfTileState extends State<StorySelfTile> {
                           color: cs.surface,
                         ),
                       ),
-                      KometAvatar(
+                      MayakAvatar(
                         name: widget.selfInfo?.name.isNotEmpty == true
                             ? widget.selfInfo!.name
                             : '+',
@@ -448,7 +448,7 @@ class FoldedStoryStack extends StatelessWidget {
                         width: _rim,
                       ),
                     ),
-                    child: KometAvatar(
+                    child: MayakAvatar(
                       name: info?.name.isNotEmpty == true ? info!.name : '?',
                       size: avatarSize,
                       imageUrl: info?.avatarUrl,

@@ -120,7 +120,7 @@
             </intent-filter>
             <meta-data
                 android:name="android.nfc.cardemulation.host_apdu_service"
-                android:resource="@xml/komet_nfc_apdu"/>
+                android:resource="@xml/mayak_nfc_apdu"/>
         </service>
         <service
             android:name=".MayakFcmService"

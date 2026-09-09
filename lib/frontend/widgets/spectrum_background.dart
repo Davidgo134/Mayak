@@ -2,6 +2,8 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+
+import '../../main.dart' show appRouteObserver;
 import 'package:flutter/scheduler.dart';
 
 import 'spectrum_tint.dart';
@@ -37,7 +39,7 @@ class SpectrumBackground extends StatefulWidget {
 }
 
 class _SpectrumBackgroundState extends State<SpectrumBackground>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver, RouteAware {
   static const double _maxStep = 0.25;
 
   final List<SpectrumTintSample> _samples = <SpectrumTintSample>[];
@@ -52,15 +54,60 @@ class _SpectrumBackgroundState extends State<SpectrumBackground>
   double _leftInset = 0;
   Color _baseColor = const Color(0xFF000000);
 
+  bool _routeCurrent = true;
+  AppLifecycleState? _lifecycle;
+
   @override
   void initState() {
     super.initState();
     SpectrumTintRegistry.instance.listenForResolvedColors(_onColorResolved);
+    WidgetsBinding.instance.addObserver(this);
     _ticker = createTicker(_onTick)..start();
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is PageRoute) appRouteObserver.subscribe(this, route);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _lifecycle = state;
+    _syncTicker();
+  }
+
+  @override
+  void didPushNext() {
+    _routeCurrent = false;
+    _syncTicker();
+  }
+
+  @override
+  void didPopNext() {
+    _routeCurrent = true;
+    _syncTicker();
+  }
+
+  /// Фон крутится, только когда реально виден: поверх открыли экран
+  /// или приложение ушло в фон — стопаем, не жжём GPU и батарею впустую.
+  void _syncTicker() {
+    final visible = _routeCurrent &&
+        (_lifecycle == null || _lifecycle == AppLifecycleState.resumed);
+    if (visible && !_ticker.isActive) {
+      _lastElapsed = Duration.zero;
+      _frameAccumulator = 0;
+      _ticker.start();
+    } else if (!visible && _ticker.isActive) {
+      _ticker.stop();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    appRouteObserver.unsubscribe(this);
     SpectrumTintRegistry.instance.listenForResolvedColors(null);
     _ticker.dispose();
     _field?.dispose();

@@ -5,7 +5,7 @@ import 'package:mayak/backend/modules/contacts.dart';
 import 'package:mayak/core/config/debug_test.dart';
 import 'package:mayak/core/contacts/contact_labels.dart';
 import 'package:mayak/core/storage/app_database.dart';
-import 'package:mayak/frontend/widgets/komet_avatar.dart';
+import 'package:mayak/frontend/widgets/mayak_avatar.dart';
 import 'package:mayak/frontend/widgets/small_spinner.dart';
 import 'package:mayak/frontend/widgets/springy_tap.dart';
 import 'package:mayak/l10n/app_localizations.dart';
@@ -186,7 +186,7 @@ class _ContactPickerPageState extends State<ContactPickerPage> {
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             child: Row(
               children: [
-                KometAvatar(name: name, imageUrl: contact.baseUrl, size: 44),
+                MayakAvatar(name: name, imageUrl: contact.baseUrl, size: 44),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(

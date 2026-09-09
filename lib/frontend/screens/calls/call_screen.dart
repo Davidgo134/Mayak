@@ -27,7 +27,7 @@ import '../../widgets/sheet_helpers.dart';
 import '../../widgets/small_spinner.dart';
 import 'call_mic_sheet.dart';
 import 'call_participants_sheet.dart';
-import 'komet_hub.dart';
+import 'mayak_hub.dart';
 import '../../../core/config/app_fonts.dart';
 
 class CallScreen extends StatefulWidget {
@@ -291,7 +291,7 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
     final session = _session;
     if (session == null) return;
     setState(() => _chatOpen = true);
-    await showKometHub(context, session: session, scheme: _darkScheme(context));
+    await showMayakHub(context, session: session, scheme: _darkScheme(context));
     if (mounted) setState(() => _chatOpen = false);
   }
 

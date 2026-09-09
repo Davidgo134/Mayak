@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:mayak/backend/modules/contacts.dart';
 import 'package:mayak/frontend/screens/contacts/contact_sheet_common.dart';
 import 'package:mayak/frontend/widgets/custom_notification.dart';
-import 'package:mayak/frontend/widgets/komet_avatar.dart';
+import 'package:mayak/frontend/widgets/mayak_avatar.dart';
 import 'package:mayak/l10n/app_localizations.dart';
 import 'package:mayak/main.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -194,7 +194,7 @@ class _EditContactCardState extends State<_EditContactCard> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Center(
-                    child: KometAvatar(
+                    child: MayakAvatar(
                       name: avatarName,
                       size: 88,
                       imageUrl: widget.avatarUrl.isEmpty
