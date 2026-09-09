@@ -309,7 +309,11 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen>
-    with TickerProviderStateMixin, WidgetsBindingObserver, ReloadOnReconnect {
+    with
+        TickerProviderStateMixin,
+        WidgetsBindingObserver,
+        ReloadOnReconnect,
+        RouteAware {
   final RichMessageController _messageController = RichMessageController();
   final FocusNode _messageFocusNode = FocusNode();
   double _keyboardReserve = 0;
@@ -839,6 +843,29 @@ class _ChatScreenState extends State<ChatScreen>
     unawaited(_loadParticipantsCount());
     WidgetsBinding.instance.addPostFrameCallback(_onFirstFrameRendered);
   }
+
+  bool _routeSubscribed = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is PageRoute && !_routeSubscribed) {
+      _routeSubscribed = true;
+      appRouteObserver.subscribe(this, route);
+    }
+  }
+
+  // Пока этот чат перекрыт другим экраном (например, открыли другой чат
+  // поверх этого), он больше не "видимый" — плавающий кружок вправе
+  // появиться поверх интерфейса, если в этом чате что-то играет.
+  @override
+  void didPushNext() => MediaPlayback.instance.leaveChat(widget.chatId);
+
+  // Вернулись назад в этот чат — он снова видимый экран, прячем
+  // плавающий кружок обратно.
+  @override
+  void didPopNext() => MediaPlayback.instance.enterChat(widget.chatId);
 
   @override
   void reloadAfterReconnect() {
@@ -2189,6 +2216,7 @@ class _ChatScreenState extends State<ChatScreen>
     _readMarker.dispose();
     AppVisualStyle.current.removeListener(_onVisualStyleChanged);
     MediaPlayback.instance.leaveChat(widget.chatId);
+    if (_routeSubscribed) appRouteObserver.unsubscribe(this);
     AppChatChrome.current.removeListener(_onVisualStyleChanged);
     AppComposerStyle.current.removeListener(_onVisualStyleChanged);
     AppComposerBackground.current.removeListener(_onVisualStyleChanged);
