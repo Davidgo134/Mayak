@@ -154,3 +154,6 @@ test/live_server_probe_test.dart
 pubspec_overrides.yaml
 .cargo/
 third_party/kolibri/
+
+# Локальный мусор/артефакты инструментов
+data/
