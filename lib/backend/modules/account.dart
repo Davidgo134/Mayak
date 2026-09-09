@@ -750,8 +750,24 @@ class AccountModule {
 
   Future<void> _persistEntryBannerApps(int accountId, Map serverConfig) async {
     final banners = serverConfig['settings-entry-banners'];
-    if (banners is! List) return;
+    if (banners is! List) {
+      logger.i('entry-banners: сервер не прислал settings-entry-banners');
+      return;
+    }
     final resolved = <String, int>{};
+    // Диагностика: пишем всё, что прислал сервер, — чтобы увидеть настоящие
+    // иконки, если матч с 'digital'/'sferum' не срабатывает.
+    for (final banner in banners) {
+      final items = (banner is Map) ? banner['items'] : null;
+      if (items is! List) continue;
+      for (final item in items) {
+        if (item is! Map) continue;
+        logger.i(
+          'entry-banners: appid=${item['appid']} '
+          'icon=${item['icon']} title=${item['title']}',
+        );
+      }
+    }
     for (final banner in banners) {
       final items = (banner is Map) ? banner['items'] : null;
       if (items is! List) continue;
@@ -767,7 +783,11 @@ class AccountModule {
         }
       }
     }
+    if (resolved.isEmpty) {
+      logger.w('entry-banners: присланы, но ничего не сматчилось');
+    }
     for (final entry in resolved.entries) {
+      logger.i('entry-banners: resolved ${entry.key}=${entry.value}');
       await AppDatabase.setSyncValue(
         accountId,
         entry.key,

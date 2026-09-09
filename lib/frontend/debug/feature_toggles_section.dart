@@ -11,6 +11,8 @@ import '../../core/config/app_show_extra_info.dart';
 import '../../core/config/app_stories.dart';
 import '../../core/config/app_swipe_back_desktop.dart';
 import '../../core/config/app_video_note_quality.dart';
+import '../../core/storage/app_database.dart';
+import '../../core/storage/token_storage.dart';
 import '../../core/contacts/device_contacts_service.dart';
 import '../screens/digital_id/digital_id_web_screen.dart';
 import '../widgets/custom_notification.dart';
@@ -154,6 +156,63 @@ class DebugFeatureTogglesSection extends StatelessWidget {
                 : 'Оригинальная страница в WebView',
             valueListenable: AppDigitalIdNative.current,
             onChanged: AppDigitalIdNative.save,
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: FutureBuilder<List<String?>>(
+            future: () async {
+              final accountId = await TokenStorage.getActiveAccountId();
+              if (accountId == null) return const [null, null];
+              return [
+                await AppDatabase.getSyncValue(
+                  accountId,
+                  'entry_banner_app_digital_id',
+                ),
+                await AppDatabase.getSyncValue(
+                  accountId,
+                  'entry_banner_app_sferum',
+                ),
+              ];
+            }(),
+            builder: (context, snapshot) {
+              final values = snapshot.data;
+              final did = values == null ? null : values[0];
+              final sferum = values == null ? null : values[1];
+              return Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 14,
+                ),
+                decoration: BoxDecoration(
+                  color: cs.surfaceContainerHigh,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Диагностика Цифрового ID',
+                      style: TextStyle(
+                        color: cs.onSurface,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'botId (digital): ${did ?? '— не найден: сервер не прислал или иконка не сматчилась'}' + chr(10)
+                      'botId (sferum): ${sferum ?? '— не найден'}',
+                      style: TextStyle(
+                        color: cs.onSurfaceVariant,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
         ),
         Padding(
