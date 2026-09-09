@@ -120,6 +120,27 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
     super.initState();
     _expand = AnimationController(vsync: this, duration: _expandDuration);
     _preview = _previewBytes(widget.attachment.previewData);
+    // Вернулись в чат-источник играющего кружка: PiP прячется слоем
+    // (visibleChatId), а пузырь подхватывает живой контроллер и продолжает
+    // играть на месте PiP — как в Telegram.
+    final live = MediaPlayback.instance.liveVideoNote(_cacheName);
+    if (live != null && live.value.isInitialized) {
+      _controller = live;
+      live.addListener(_onTick);
+      _PreviewPool.pin(this);
+      _frameSize = live.value.size;
+      _playing = live.value.isPlaying;
+      final liveTotalMs = live.value.duration.inMilliseconds;
+      _ringProgress.value = liveTotalMs > 0
+          ? (live.value.position.inMilliseconds / liveTotalMs).clamp(0.0, 1.0)
+          : 0.0;
+      if (_playing) {
+        _playingNote = this;
+        _expandedNote = this;
+        _expand.value = 1.0;
+      }
+      return;
+    }
     final local = _localPath;
     if (local != null) {
       unawaited(_openLocalPreview(File(local)));
@@ -714,9 +735,9 @@ class NoteRingGeometry {
   const NoteRingGeometry({required this.extent, required this.knobRadius});
 
   static const double startAngle = -math.pi / 2;
-  static const double bandTolerance = 12;
-  static const double knobTolerance = 26;
-  static const double stroke = 3;
+  static const double bandTolerance = 24;
+  static const double knobTolerance = 36;
+  static const double stroke = 4;
 
   final double extent;
   final double knobRadius;
