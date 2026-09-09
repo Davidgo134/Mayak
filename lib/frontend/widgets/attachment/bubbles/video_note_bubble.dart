@@ -52,16 +52,23 @@ class VideoNoteBubble extends StatefulWidget {
 
   @override
   State<VideoNoteBubble> createState() => _VideoNoteBubbleState();
+
+  /// Collapses the currently paused-but-still-expanded note bubble if the
+  /// given global tap position lands outside of it (Telegram-style: a
+  /// paused round video stays large until you tap elsewhere).
+  static void collapseOutside(Offset globalPosition) =>
+      _VideoNoteBubbleState._collapseOutside(globalPosition);
 }
 
 class _VideoNoteBubbleState extends State<VideoNoteBubble>
     with SingleTickerProviderStateMixin {
-  static const double _baseSize = 210;
-  static const double _expandedScale = 1.7;
+  static const double _baseSize = 224;
+  static const double _expandedScale = 1.85;
   static const Duration _expandDuration = Duration(milliseconds: 280);
   static const Duration _swapDuration = Duration(milliseconds: 220);
 
   static _VideoNoteBubbleState? _playingNote;
+  static _VideoNoteBubbleState? _expandedNote;
 
   late final AnimationController _expand;
   final ValueNotifier<double> _ringProgress = ValueNotifier(0);
@@ -78,6 +85,8 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
   bool _scrubbing = false;
   bool _seekInFlight = false;
   bool _resumeAfterScrub = false;
+  double? _holdSpeedOriginal;
+  final GlobalKey _boundsKey = GlobalKey();
 
   int? get _videoId => widget.attachment.videoId;
   String get _cacheName => 'videonote_$_videoId.mp4';
@@ -128,6 +137,7 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
   @override
   void dispose() {
     if (_playingNote == this) _playingNote = null;
+    if (_expandedNote == this) _expandedNote = null;
     _PreviewPool.unregister(this);
     _expand.dispose();
     _ringProgress.dispose();
@@ -327,6 +337,7 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
     final other = _playingNote;
     if (other != null && other != this) await other._pause();
     _playingNote = this;
+    _expandedNote = this;
     _PreviewPool.pin(this);
     _claimPlayback();
     await controller.play();
@@ -340,8 +351,30 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
     await controller.pause();
     if (_playingNote == this) _playingNote = null;
     _PreviewPool.register(this);
+    if (mounted) setState(() {});
+  }
+
+  void _collapse() {
+    if (_expandedNote == this) _expandedNote = null;
     _expand.reverse();
     if (mounted) setState(() {});
+  }
+
+  static void _collapseOutside(Offset globalPosition) {
+    final note = _expandedNote;
+    if (note == null || !note.mounted) return;
+    if (note._playing) return;
+    final box =
+        note._boundsKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    final local = box.globalToLocal(globalPosition);
+    final size = box.size;
+    final inside =
+        local.dx >= 0 &&
+        local.dy >= 0 &&
+        local.dx <= size.width &&
+        local.dy <= size.height;
+    if (!inside) note._collapse();
   }
 
   void _seekToProgress(double progress) {
@@ -404,6 +437,22 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
     if (mounted) setState(() {});
   }
 
+  void _speedHoldStart(Offset local, double size) {
+    if (local.dx < size / 2) return;
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) return;
+    Haptics.tap();
+    _holdSpeedOriginal = controller.value.playbackSpeed;
+    controller.setPlaybackSpeed(2.0);
+  }
+
+  void _speedHoldEnd() {
+    final original = _holdSpeedOriginal;
+    if (original == null) return;
+    _holdSpeedOriginal = null;
+    _controller?.setPlaybackSpeed(original);
+  }
+
   Future<void> _drainSeeks() async {
     _seekInFlight = true;
     try {
@@ -459,7 +508,13 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
 
     return GestureDetector(
       onTap: uploading == null ? _toggle : null,
+      onLongPressStart: uploading == null
+          ? (details) => _speedHoldStart(details.localPosition, size)
+          : null,
+      onLongPressEnd: uploading == null ? (_) => _speedHoldEnd() : null,
+      onLongPressCancel: uploading == null ? _speedHoldEnd : null,
       child: SizedBox(
+        key: _boundsKey,
         width: size,
         height: size,
         child: Stack(
