@@ -424,13 +424,6 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
   NoteRingGeometry _geometry(double extent) =>
       NoteRingGeometry(extent: extent, knobRadius: _scrubbing ? 9 : 7);
 
-  void _ringTap(Offset local, double extent) {
-    final controller = _controller;
-    if (controller == null || !controller.value.isInitialized) return;
-    Haptics.tap();
-    _seekToProgress(_geometry(extent).progressAt(local));
-  }
-
   Future<void> _ringDragStart(Offset local, double extent) async {
     final controller = _controller;
     if (controller == null || !controller.value.isInitialized) return;
@@ -439,6 +432,8 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
     if (!mounted) return;
 
     final geometry = _geometry(extent);
+    // У самого центра угол пальца шумный — там скраб не начинаем.
+    if ((local - geometry.center).distance < extent * 0.15) return;
     final target = geometry.progressAt(local);
     Haptics.tap();
     _lastAngle = geometry.angleAt(local);
@@ -548,6 +543,16 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
           : null,
       onLongPressEnd: uploading == null ? (_) => _speedHoldEnd() : null,
       onLongPressCancel: uploading == null ? _speedHoldEnd : null,
+      // Скраб с любой точки кружка (как в ТГ): тап = пауза/играть,
+      // драг по дуге = перемотка. Тап, pan и long-press разруливает арена.
+      onPanStart: uploading == null
+          ? (details) => _ringDragStart(details.localPosition, size)
+          : null,
+      onPanUpdate: uploading == null
+          ? (details) => _ringDragUpdate(details.localPosition, size)
+          : null,
+      onPanEnd: uploading == null ? (_) => _ringDragEnd() : null,
+      onPanCancel: uploading == null ? _ringDragEnd : null,
       child: SizedBox(
         key: _boundsKey,
         width: size,
@@ -680,20 +685,15 @@ class _VideoNoteBubbleState extends State<VideoNoteBubble>
   }
 
   Widget _buildRing(double size) {
-    return GestureDetector(
-      onTapUp: (details) => _ringTap(details.localPosition, size),
-      onPanStart: (details) => _ringDragStart(details.localPosition, size),
-      onPanUpdate: (details) => _ringDragUpdate(details.localPosition, size),
-      onPanEnd: (_) => _ringDragEnd(),
-      onPanCancel: _ringDragEnd,
-      child: CustomPaint(
-        size: Size(size, size),
-        painter: _NoteRingPainter(
-          geometry: _geometry(size),
-          progress: _ringProgress,
-          color: widget.cs.primary,
-          trackColor: Colors.white30,
-        ),
+    // Чисто визуальный слой: жесты ловит внешний GestureDetector
+    // (_buildCircle) по всей площади кружка — тап = пауза, драг = скраб.
+    return CustomPaint(
+      size: Size(size, size),
+      painter: _NoteRingPainter(
+        geometry: _geometry(size),
+        progress: _ringProgress,
+        color: widget.cs.primary,
+        trackColor: Colors.white30,
       ),
     );
   }
@@ -735,8 +735,6 @@ class NoteRingGeometry {
   const NoteRingGeometry({required this.extent, required this.knobRadius});
 
   static const double startAngle = -math.pi / 2;
-  static const double bandTolerance = 24;
-  static const double knobTolerance = 36;
   static const double stroke = 4;
 
   final double extent;
@@ -776,12 +774,6 @@ class NoteRingGeometry {
   double advance(double progress, double delta) =>
       (progress + delta / (2 * math.pi)).clamp(0.0, 1.0);
 
-  bool grabs(Offset position, double progress) {
-    if ((position - knobCenter(progress)).distance <= knobTolerance) {
-      return true;
-    }
-    return ((position - center).distance - radius).abs() <= bandTolerance;
-  }
 }
 
 class _NoteRingPainter extends CustomPainter {
@@ -839,9 +831,6 @@ class _NoteRingPainter extends CustomPainter {
     canvas.drawCircle(knob, knobRadius, Paint()..color = Colors.white);
     canvas.drawCircle(knob, knobRadius - 2.5, Paint()..color = color);
   }
-
-  @override
-  bool hitTest(Offset position) => geometry.grabs(position, progress.value);
 
   @override
   bool shouldRepaint(_NoteRingPainter old) =>
