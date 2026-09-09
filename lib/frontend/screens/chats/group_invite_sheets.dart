@@ -10,7 +10,7 @@ import 'package:mayak/core/storage/app_database.dart';
 import 'package:mayak/core/storage/token_storage.dart';
 import 'package:mayak/frontend/screens/contacts/contact_sheet_common.dart';
 import 'package:mayak/frontend/widgets/custom_notification.dart';
-import 'package:mayak/frontend/widgets/komet_avatar.dart';
+import 'package:mayak/frontend/widgets/mayak_avatar.dart';
 import 'package:mayak/l10n/app_localizations.dart';
 
 class _Candidate {
@@ -281,7 +281,7 @@ class _AddMembersCardState extends State<_AddMembersCard> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: Row(
           children: [
-            KometAvatar(name: c.name, imageUrl: c.avatarUrl, size: 42),
+            MayakAvatar(name: c.name, imageUrl: c.avatarUrl, size: 42),
             const SizedBox(width: 14),
             Expanded(
               child: Text(
@@ -424,7 +424,7 @@ class _InviteLinkCard extends StatelessWidget {
                     padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
                     child: Row(
                       children: [
-                        KometAvatar(name: title, imageUrl: avatarUrl, size: 40),
+                        MayakAvatar(name: title, imageUrl: avatarUrl, size: 40),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(

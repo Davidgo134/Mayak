@@ -12,7 +12,7 @@ import 'package:video_player/video_player.dart';
 import '../../../core/utils/haptics.dart';
 import '../../../main.dart' show storiesModule;
 import '../../../models/story.dart';
-import '../../widgets/komet_avatar.dart';
+import '../../widgets/mayak_avatar.dart';
 import '../../widgets/small_spinner.dart';
 import 'story_owner_info.dart';
 import '../../../core/config/app_frost.dart';
@@ -520,7 +520,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                   width: 1.6,
                 ),
               ),
-              child: KometAvatar(
+              child: MayakAvatar(
                 name: info?.name.isNotEmpty == true ? info!.name : '?',
                 size: 34,
                 imageUrl: info?.avatarUrl,
@@ -839,7 +839,7 @@ class _OwnerCover extends StatelessWidget {
           builder: (context, info) => Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              KometAvatar(
+              MayakAvatar(
                 name: info?.name.isNotEmpty == true ? info!.name : '?',
                 size: 92,
                 imageUrl: info?.avatarUrl,

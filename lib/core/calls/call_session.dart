@@ -1296,7 +1296,7 @@ class CallSession {
     if (text == _probeQuestion) {
       _sendProbe(channel, _probeAnswer);
     } else if (text == _probeAnswer) {
-      _markPeerKomet();
+      _markPeerMayak();
     }
   }
 
@@ -1342,7 +1342,7 @@ class CallSession {
     if (!_chatController.isClosed) _chatController.add(message);
   }
 
-  void _markPeerKomet() {
+  void _markPeerMayak() {
     if (_peerIsMayak) return;
     _peerIsMayak = true;
     logger.t('[call] peer is Mayak');

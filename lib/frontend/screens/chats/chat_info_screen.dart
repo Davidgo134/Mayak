@@ -37,7 +37,7 @@ import '../../widgets/custom_notification.dart';
 import '../../widgets/formatted_message_text.dart';
 import '../../widgets/reload_on_reconnect.dart';
 import '../../widgets/glossy_pill.dart';
-import '../../widgets/komet_avatar.dart';
+import '../../widgets/mayak_avatar.dart';
 import '../../widgets/profile_header_scroll.dart';
 import '../../widgets/profile_hero.dart';
 import '../../widgets/swipe_route.dart';
@@ -1083,7 +1083,7 @@ class _ChatInfoScreenState extends State<ChatInfoScreen>
     }
     final url = _avatarPages.isNotEmpty ? _avatarPages.first : widget.imageUrl;
     if (url.isEmpty) {
-      return KometAvatar(
+      return MayakAvatar(
         name: widget.name,
         size: _headerAvatarSize,
         fontSize: 36,

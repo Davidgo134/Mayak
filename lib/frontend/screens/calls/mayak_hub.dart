@@ -9,7 +9,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../widgets/sheet_helpers.dart';
 import '../../../core/config/app_fonts.dart';
 
-Future<void> showKometHub(
+Future<void> showMayakHub(
   BuildContext context, {
   required CallSession session,
   required ColorScheme scheme,
@@ -22,23 +22,23 @@ Future<void> showKometHub(
     shape: kSheetShape,
     builder: (_) => Theme(
       data: Theme.of(context).copyWith(colorScheme: scheme),
-      child: _KometHub(session: session),
+      child: _MayakHub(session: session),
     ),
   );
 }
 
 enum _HubPage { menu, chat, games, checkers }
 
-class _KometHub extends StatefulWidget {
+class _MayakHub extends StatefulWidget {
   final CallSession session;
 
-  const _KometHub({required this.session});
+  const _MayakHub({required this.session});
 
   @override
-  State<_KometHub> createState() => _KometHubState();
+  State<_MayakHub> createState() => _MayakHubState();
 }
 
-class _KometHubState extends State<_KometHub> {
+class _MayakHubState extends State<_MayakHub> {
   _HubPage _page = _HubPage.menu;
 
   void _go(_HubPage page) => setState(() => _page = page);
@@ -131,7 +131,7 @@ class _KometHubState extends State<_KometHub> {
       case _HubPage.games:
         return _games(cs);
       case _HubPage.chat:
-        return _KometChatView(session: widget.session);
+        return _MayakChatView(session: widget.session);
       case _HubPage.checkers:
         return _CheckersView(session: widget.session);
     }
@@ -224,16 +224,16 @@ class _KometHubState extends State<_KometHub> {
   }
 }
 
-class _KometChatView extends StatefulWidget {
+class _MayakChatView extends StatefulWidget {
   final CallSession session;
 
-  const _KometChatView({required this.session});
+  const _MayakChatView({required this.session});
 
   @override
-  State<_KometChatView> createState() => _KometChatViewState();
+  State<_MayakChatView> createState() => _MayakChatViewState();
 }
 
-class _KometChatViewState extends State<_KometChatView> {
+class _MayakChatViewState extends State<_MayakChatView> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scroll = ScrollController();
   StreamSubscription<CallChatMessage>? _sub;
