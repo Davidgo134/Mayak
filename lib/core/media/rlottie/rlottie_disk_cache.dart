@@ -29,7 +29,7 @@ class RlottieDiskCache {
   static final RlottieDiskCache instance = RlottieDiskCache._();
 
   static const _magic = 0x4b524c46;
-  static const _version = 2;
+  static const _version = 3;
   static const int _maxBytes = 256 * 1024 * 1024;
 
   Directory? _dir;

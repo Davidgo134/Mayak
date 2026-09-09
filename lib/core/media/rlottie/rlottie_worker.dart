@@ -66,7 +66,7 @@ class CancelJob {
   final int jobId;
 }
 
-const double _maxCacheFps = 30.0;
+const double _maxCacheFps = 60.0;
 
 void rlottieWorkerMain(SendPort toMain) {
   final port = ReceivePort();
