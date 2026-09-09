@@ -6,6 +6,7 @@ import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:kolibri/kolibri.dart' show initKolibri;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/rendering.dart';
 import 'package:video_player_media_kit/video_player_media_kit.dart';
 import 'package:mayak/l10n/app_localizations.dart';
@@ -182,6 +183,7 @@ void _installLogCapture() {
 
 void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   await initKolibri();
   DebugTest.parse(args);
   CallNoMute.parse(args);
@@ -407,6 +409,7 @@ class MayakAppState extends State<MayakApp>
     _fontId = widget.initialFontId;
 
     WidgetsBinding.instance.addObserver(this);
+    _applySystemNavStyle();
     AppThemeModeConfig.current.addListener(_onThemeModeChanged);
     AppAmoled.current.addListener(_onAmoledChanged);
     AppThemeSchedule.current.addListener(_onScheduleChanged);
@@ -626,6 +629,7 @@ class MayakAppState extends State<MayakApp>
       SelfCheckService.instance.pause();
     }
     if (state != AppLifecycleState.resumed) return;
+    _applySystemNavStyle();
     api.wakeUp();
     SelfCheckService.instance.resume();
     if (!CallController.instance.isBusy) {
@@ -642,13 +646,37 @@ class MayakAppState extends State<MayakApp>
     if (mounted) setState(() {});
   }
 
+  void _applySystemNavStyle() {
+    final Brightness brightness = switch (_effectiveThemeMode) {
+      ThemeMode.light => Brightness.light,
+      ThemeMode.dark => Brightness.dark,
+      ThemeMode.system =>
+        WidgetsBinding.instance.platformDispatcher.platformBrightness,
+    };
+    final isDark = brightness == Brightness.dark;
+    final iconBrightness = isDark ? Brightness.light : Brightness.dark;
+    SystemChrome.setSystemUIOverlayStyle(
+      SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: iconBrightness,
+        statusBarBrightness: brightness,
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarDividerColor: Colors.transparent,
+        systemNavigationBarIconBrightness: iconBrightness,
+        systemNavigationBarContrastEnforced: false,
+      ),
+    );
+  }
+
   void _onThemeModeChanged() {
     _rescheduleSwitch();
     _lastAppliedThemeMode = _effectiveThemeMode;
+    _applySystemNavStyle();
     if (mounted) setState(() {});
   }
 
   void _onAmoledChanged() {
+    _applySystemNavStyle();
     if (mounted) setState(() {});
   }
 
