@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../backend/modules/chats.dart';
 import '../../backend/modules/messages.dart' show ContactCache;
 import '../../core/cache/info_cache.dart';
+import '../../core/media/media_playback.dart';
 import '../../core/storage/app_database.dart';
 import '../../core/utils/webview_support.dart';
 import '../../main.dart';
@@ -64,6 +65,10 @@ Future<bool> openChatAtMessage(
 }) async {
   final myId = await currentAccountId();
   if (myId == 0) return false;
+  // Уже смотрим этот чат (тап по пилюле поверх открытого чата):
+  // не пушим дубликат — иначе каждый тап кладёт копию экрана в стек
+  // и назад потом приходится жать столько же раз.
+  if (MediaPlayback.instance.visibleChatId.value == chatId) return true;
   final chat = await resolveChat(myId, chatId);
   if (!context.mounted) return false;
   if (chat == null) {
@@ -73,7 +78,10 @@ Future<bool> openChatAtMessage(
 
   final title = chat.title?.trim();
   final peerId = (chat.type == 'DIALOG' && chatId != 0) ? chatId ^ myId : 0;
-  final name = (title != null && title.isNotEmpty)
+  // Избранное (chatId == 0) не имеет title в кэше — называем явно.
+  final name = chatId == 0
+      ? 'Избранное'
+      : (title != null && title.isNotEmpty)
       ? title
       : (ContactCache.get(chatId ^ myId) ?? 'Чат');
   final imageUrl =
