@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:komet/backend/modules/messages.dart';
-import 'package:komet/frontend/widgets/liquid_glass.dart';
-import 'package:komet/frontend/widgets/photo_viewer.dart';
-import 'package:komet/l10n/app_localizations.dart';
-import 'package:komet/models/attachment.dart';
+import 'package:mayak/backend/modules/messages.dart';
+import 'package:mayak/frontend/widgets/liquid_glass.dart';
+import 'package:mayak/frontend/widgets/photo_viewer.dart';
+import 'package:mayak/l10n/app_localizations.dart';
+import 'package:mayak/models/attachment.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 const _video = VideoAttachment(

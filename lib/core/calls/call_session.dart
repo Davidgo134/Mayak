@@ -133,7 +133,7 @@ class CallSession {
   static const int _speakHoldTicks = 3;
 
   RTCDataChannel? _probeChannel;
-  bool _peerIsKomet = false;
+  bool _peerIsMayak = false;
 
   final List<RTCDataChannel> _sfuChannels = [];
   SfuCommandChannel? _sfuCommands;
@@ -206,7 +206,7 @@ class CallSession {
   final _state = StreamController<CallSessionState>.broadcast();
   final _remoteStream = StreamController<MediaStream>.broadcast();
   final _info = StreamController<void>.broadcast();
-  final _kometDetected = StreamController<void>.broadcast();
+  final _mayakDetected = StreamController<void>.broadcast();
 
   Stream<CallSessionState> get stateStream => _state.stream;
   Stream<MediaStream> get remoteStreamStream => _remoteStream.stream;
@@ -214,8 +214,8 @@ class CallSession {
 
   Stream<void> get infoUpdates => _info.stream;
 
-  Stream<void> get peerKometDetected => _kometDetected.stream;
-  bool get peerIsKomet => _peerIsKomet;
+  Stream<void> get peerMayakDetected => _mayakDetected.stream;
+  bool get peerIsMayak => _peerIsMayak;
 
   bool get isMuted => _muted;
   bool get audioTransmitting => !_muted || CallNoMute.enabled;
@@ -814,7 +814,7 @@ class CallSession {
       init: RTCRtpTransceiverInit(direction: TransceiverDirection.RecvOnly),
     );
 
-    await _setupKometProbe(pc);
+    await _setupMayakProbe(pc);
 
     if (_isDesktop) await _preferVp8Codecs(pc);
 
@@ -1252,7 +1252,7 @@ class CallSession {
     }
   }
 
-  Future<void> _setupKometProbe(RTCPeerConnection pc) async {
+  Future<void> _setupMayakProbe(RTCPeerConnection pc) async {
     if (!_kometProbeEnabled || _topology == 'SERVER') return;
     try {
       final channel = await pc.createDataChannel(
@@ -1343,10 +1343,10 @@ class CallSession {
   }
 
   void _markPeerKomet() {
-    if (_peerIsKomet) return;
-    _peerIsKomet = true;
-    logger.t('[call] peer is Komet');
-    if (!_kometDetected.isClosed) _kometDetected.add(null);
+    if (_peerIsMayak) return;
+    _peerIsMayak = true;
+    logger.t('[call] peer is Mayak');
+    if (!_mayakDetected.isClosed) _mayakDetected.add(null);
     _notifyInfo();
   }
 
@@ -2349,7 +2349,7 @@ class CallSession {
     if (!_state.isClosed) await _state.close();
     if (!_remoteStream.isClosed) await _remoteStream.close();
     if (!_info.isClosed) await _info.close();
-    if (!_kometDetected.isClosed) await _kometDetected.close();
+    if (!_mayakDetected.isClosed) await _mayakDetected.close();
     if (!_chatController.isClosed) await _chatController.close();
     if (!_gameController.isClosed) await _gameController.close();
   }

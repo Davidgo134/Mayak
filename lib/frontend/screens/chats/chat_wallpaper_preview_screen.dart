@@ -4,8 +4,8 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
-import 'package:komet/core/storage/chat_wallpaper_store.dart';
-import 'package:komet/frontend/widgets/chat_wallpaper_view.dart';
+import 'package:mayak/core/storage/chat_wallpaper_store.dart';
+import 'package:mayak/frontend/widgets/chat_wallpaper_view.dart';
 import '../../../core/config/app_frost.dart';
 import '../../../core/config/app_fonts.dart';
 

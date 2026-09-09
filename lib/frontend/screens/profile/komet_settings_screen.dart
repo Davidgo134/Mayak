@@ -4,13 +4,13 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../widgets/connection_status.dart';
 
 import '../../../core/config/build_profile.dart';
-import '../../../core/config/komet_settings.dart';
+import '../../../core/config/mayak_settings.dart';
 import '../../../main.dart';
 import '../../widgets/section_header.dart';
 import '../../widgets/settings_card.dart';
 
-class KometSettingsScreen extends StatelessWidget {
-  const KometSettingsScreen({super.key});
+class MayakSettingsScreen extends StatelessWidget {
+  const MayakSettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -37,35 +37,35 @@ class KometSettingsScreen extends StatelessWidget {
               children: [
                 if (BuildProfile.hiddenContentViewers) ...[
                   ValueListenableBuilder<bool>(
-                    valueListenable: KometSettings.viewDeleted,
+                    valueListenable: MayakSettings.viewDeleted,
                     builder: (context, value, _) => SettingsToggleTile(
                       icon: Symbols.delete_history,
                       label: 'View deleted message',
                       subtitle: 'Показывать удалённые сообщения',
                       value: value,
-                      onChanged: KometSettings.setViewDeleted,
+                      onChanged: MayakSettings.setViewDeleted,
                     ),
                   ),
                   ValueListenableBuilder<bool>(
-                    valueListenable: KometSettings.viewRedacted,
+                    valueListenable: MayakSettings.viewRedacted,
                     builder: (context, value, _) => SettingsToggleTile(
                       icon: Symbols.history_edu,
                       label: 'View redacted message history',
                       subtitle:
                           'Показывать историю у редактированных сообщений',
                       value: value,
-                      onChanged: KometSettings.setViewRedacted,
+                      onChanged: MayakSettings.setViewRedacted,
                     ),
                   ),
                 ],
                 ValueListenableBuilder<bool>(
-                  valueListenable: KometSettings.fullTimestamp,
+                  valueListenable: MayakSettings.fullTimestamp,
                   builder: (context, value, _) => SettingsToggleTile(
                     icon: Symbols.schedule,
                     label: 'Точное время сообщений',
                     subtitle: 'Показывать время в секундах у сообщений',
                     value: value,
-                    onChanged: KometSettings.setFullTimestamp,
+                    onChanged: MayakSettings.setFullTimestamp,
                   ),
                 ),
               ],
@@ -79,7 +79,7 @@ class KometSettingsScreen extends StatelessWidget {
             SettingsCard(
               children: [
                 ValueListenableBuilder<bool>(
-                  valueListenable: KometSettings.hideAllChatsFolder,
+                  valueListenable: MayakSettings.hideAllChatsFolder,
                   builder: (context, value, _) => SettingsToggleTile(
                     icon: Symbols.folder_off,
                     label: 'Скрыть папку «Все»',
@@ -87,11 +87,11 @@ class KometSettingsScreen extends StatelessWidget {
                         'Скрыть папку «Все», когда есть другие папки. '
                         'Чаты сортируются только по вашим папкам',
                     value: value,
-                    onChanged: KometSettings.setHideAllChatsFolder,
+                    onChanged: MayakSettings.setHideAllChatsFolder,
                   ),
                 ),
                 ValueListenableBuilder<bool>(
-                  valueListenable: KometSettings.showHiddenChats,
+                  valueListenable: MayakSettings.showHiddenChats,
                   builder: (context, value, _) => SettingsToggleTile(
                     icon: Symbols.visibility_lock,
                     label: 'Показывать скрытые чаты',
@@ -99,7 +99,7 @@ class KometSettingsScreen extends StatelessWidget {
                         'Показывать скрытые чаты (например, от групповых '
                         'звонков), которые обычно не отображаются в списке',
                     value: value,
-                    onChanged: KometSettings.setShowHiddenChats,
+                    onChanged: MayakSettings.setShowHiddenChats,
                   ),
                 ),
               ],
@@ -113,7 +113,7 @@ class KometSettingsScreen extends StatelessWidget {
             SettingsCard(
               children: [
                 ValueListenableBuilder<bool>(
-                  valueListenable: KometSettings.ghostMode,
+                  valueListenable: MayakSettings.ghostMode,
                   builder: (context, value, _) => SettingsToggleTile(
                     icon: Symbols.visibility_off,
                     label: 'Режим невидимки',
@@ -123,17 +123,17 @@ class KometSettingsScreen extends StatelessWidget {
                   ),
                 ),
                 ValueListenableBuilder<bool>(
-                  valueListenable: KometSettings.antiRead,
+                  valueListenable: MayakSettings.antiRead,
                   builder: (context, value, _) => SettingsToggleTile(
                     icon: Symbols.mark_chat_read,
                     label: 'Нечиталка',
                     subtitle: 'Нечиталка сообщений',
                     value: value,
-                    onChanged: KometSettings.setAntiRead,
+                    onChanged: MayakSettings.setAntiRead,
                   ),
                 ),
                 ValueListenableBuilder<bool>(
-                  valueListenable: KometSettings.selfOnlineCheck,
+                  valueListenable: MayakSettings.selfOnlineCheck,
                   builder: (context, value, _) => SettingsToggleTile(
                     icon: Symbols.radar,
                     label: 'Проверка своего онлайна',
@@ -141,7 +141,7 @@ class KometSettingsScreen extends StatelessWidget {
                         'Каждые ~10 секунд сверяет, когда вы были онлайн. '
                         'Полезно для проверки ghost mode',
                     value: value,
-                    onChanged: KometSettings.setSelfOnlineCheck,
+                    onChanged: MayakSettings.setSelfOnlineCheck,
                   ),
                 ),
               ],
@@ -153,7 +153,7 @@ class KometSettingsScreen extends StatelessWidget {
   }
 
   Future<void> _setGhostMode(bool value) async {
-    await KometSettings.setGhostMode(value);
+    await MayakSettings.setGhostMode(value);
     api.sendPing(interactive: !value);
   }
 }

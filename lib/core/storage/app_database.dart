@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:komet/core/storage/app_instance.dart';
-import 'package:komet/core/utils/logger.dart';
+import 'package:mayak/core/storage/app_instance.dart';
+import 'package:mayak/core/utils/logger.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart' show databaseFactorySqflitePlugin;

@@ -5,9 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:komet/core/config/app_spectrum_background.dart';
-import 'package:komet/frontend/widgets/komet_avatar.dart';
-import 'package:komet/frontend/widgets/spectrum_background.dart';
+import 'package:mayak/core/config/app_spectrum_background.dart';
+import 'package:mayak/frontend/widgets/komet_avatar.dart';
+import 'package:mayak/frontend/widgets/spectrum_background.dart';
 
 class _CountingCanvas implements Canvas {
   final List<Rect> rects = <Rect>[];

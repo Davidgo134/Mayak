@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../l10n/app_localizations.dart';
-import '../../main.dart' show KometApp;
+import '../../main.dart' show MayakApp;
 
 enum UploadKind { photo, video, videoNote, voice, file }
 
@@ -189,7 +189,7 @@ class UploadNotificationService {
   }
 
   static AppLocalizations _localizations() {
-    final context = KometApp.navigatorKey.currentContext;
+    final context = MayakApp.navigatorKey.currentContext;
     if (context != null) {
       final scoped = Localizations.of<AppLocalizations>(
         context,

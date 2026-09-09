@@ -252,9 +252,9 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
     });
     _remoteStreamSub = session.remoteStreamStream.listen(_attachStream);
     _tileStreamSub = session.participantStreamUpdates.listen(_onTileStream);
-    _kometSub = session.peerKometDetected.listen((_) => _showKometBadge());
+    _kometSub = session.peerMayakDetected.listen((_) => _showKometBadge());
     _chatSub = session.chatMessages.listen(_onChatMessage);
-    if (session.peerIsKomet) {
+    if (session.peerIsMayak) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _showKometBadge());
     }
     final existing = session.remoteStream;
@@ -279,7 +279,7 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
   void _showKometBadge() {
     if (!mounted) return;
     final l10n = AppLocalizations.of(context)!;
-    showCustomNotification(context, l10n.callKometDetectedNotification);
+    showCustomNotification(context, l10n.callMayakDetectedNotification);
   }
 
   void _onChatMessage(CallChatMessage message) {
@@ -1010,10 +1010,10 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (_session?.peerIsKomet == true)
+                  if (_session?.peerIsMayak == true)
                     IconButton(
                       onPressed: _openKometHub,
-                      tooltip: l10n.callTooltipKometHub,
+                      tooltip: l10n.callTooltipMayakHub,
                       icon: Icon(
                         Symbols.auto_awesome,
                         color: cs.primary,

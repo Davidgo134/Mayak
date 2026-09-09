@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:komet/frontend/screens/webapp/web_app_bridge.dart';
+import 'package:mayak/frontend/screens/webapp/web_app_bridge.dart';
 
 void main() {
   late List<(String, Map<String, dynamic>, bool)> sent;

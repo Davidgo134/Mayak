@@ -8,10 +8,10 @@ import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:video_player/video_player.dart';
 
-import 'package:komet/core/media/gallery_source.dart';
-import 'package:komet/core/media/video_transcoder.dart';
-import 'package:komet/frontend/widgets/custom_notification.dart';
-import 'package:komet/frontend/widgets/lottie_slash_icon.dart';
+import 'package:mayak/core/media/gallery_source.dart';
+import 'package:mayak/core/media/video_transcoder.dart';
+import 'package:mayak/frontend/widgets/custom_notification.dart';
+import 'package:mayak/frontend/widgets/lottie_slash_icon.dart';
 
 import '../../../core/config/app_colors.dart';
 import '../../../l10n/app_localizations.dart';

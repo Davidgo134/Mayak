@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:komet/main.dart';
+import 'package:mayak/main.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../backend/modules/messages.dart'

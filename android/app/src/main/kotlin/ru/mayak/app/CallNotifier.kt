@@ -72,7 +72,7 @@ object CallNotifier {
 
     fun showIncoming(ctx: Context, data: Map<String, String>) {
         if (AppState.resumed) {
-            Log.d("KometFcm", "call push suppressed (app foreground)")
+            Log.d("MayakFcm", "call push suppressed (app foreground)")
             return
         }
         val name = data["userName"] ?: data["title"] ?: "Неизвестный"
@@ -82,7 +82,7 @@ object CallNotifier {
         val account = data["c"] ?: ""
         val callJson = JSONObject(data as Map<*, *>).toString()
 
-        Log.d("KometFcm", "showIncoming caller=$callerId conv=$conversationId keys=${data.keys}")
+        Log.d("MayakFcm", "showIncoming caller=$callerId conv=$conversationId keys=${data.keys}")
 
         ensureChannel(ctx)
 
@@ -117,7 +117,7 @@ object CallNotifier {
     }
 
     fun finishCall(ctx: Context, data: Map<String, String>) {
-        Log.d("KometFcm", "finishCall keys=${data.keys}")
+        Log.d("MayakFcm", "finishCall keys=${data.keys}")
         CallRinger.stop()
         NotificationManagerCompat.from(ctx).cancel(CallConst.NOTIF_ID)
         CallEvents.emit("ended")
@@ -271,7 +271,7 @@ object CallRinger {
             rt.play()
             ringtone = rt
         } catch (e: Exception) {
-            Log.w("KometFcm", "ringtone failed: ${e.message}")
+            Log.w("MayakFcm", "ringtone failed: ${e.message}")
         }
     }
 
@@ -288,7 +288,7 @@ object CallRinger {
             }
             vibrator = vib
         } catch (e: Exception) {
-            Log.w("KometFcm", "vibrate failed: ${e.message}")
+            Log.w("MayakFcm", "vibrate failed: ${e.message}")
         }
     }
 }
@@ -315,7 +315,7 @@ class CallActionReceiver : BroadcastReceiver() {
         try {
             ctx.sendBroadcast(fln)
         } catch (e: Exception) {
-            Log.w("KometFcm", "decline broadcast failed: ${e.message}")
+            Log.w("MayakFcm", "decline broadcast failed: ${e.message}")
         }
     }
 }

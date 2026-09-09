@@ -10,7 +10,7 @@ import 'package:timezone/data/latest_all.dart' as tz;
 import '../core/cache/self_presence.dart';
 import '../core/config/config.dart';
 import '../core/config/countries.dart';
-import '../core/config/komet_settings.dart';
+import '../core/config/mayak_settings.dart';
 import '../core/config/proxy_config.dart';
 import '../core/protocol/opcode_map.dart';
 import '../core/protocol/packet.dart';
@@ -514,7 +514,7 @@ class Api {
       deviceLocale: deviceLocale,
       clientSessionId: clientSessionId,
       pingIntervalSecs: ServerConfig.pingInterval.inSeconds,
-      pingInteractive: !KometSettings.ghostMode.value,
+      pingInteractive: !MayakSettings.ghostMode.value,
       autoReconnect: false,
       insecureTls: insecureTls,
       proxy: proxy,
@@ -666,7 +666,7 @@ class Api {
     try {
       await session
           .requestMapFull(Opcode.ping, {
-            'interactive': !KometSettings.ghostMode.value,
+            'interactive': !MayakSettings.ghostMode.value,
           })
           .timeout(const Duration(seconds: 6));
     } catch (_) {
@@ -721,7 +721,7 @@ class Api {
   /// синхронизация interactive-флага пинга и присутствия.
   void _startLiveness() {
     _livenessTimer?.cancel();
-    _lastInteractive = !KometSettings.ghostMode.value;
+    _lastInteractive = !MayakSettings.ghostMode.value;
     _livenessTimer = Timer.periodic(_livenessInterval, (_) => _tickLiveness());
   }
 
@@ -734,7 +734,7 @@ class Api {
       _onDisconnected();
       return;
     }
-    final interactive = !KometSettings.ghostMode.value;
+    final interactive = !MayakSettings.ghostMode.value;
     if (interactive != _lastInteractive) {
       _lastInteractive = interactive;
       try {

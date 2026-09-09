@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:komet/backend/modules/messages.dart';
-import 'package:komet/models/attachment.dart';
-import 'package:komet/models/bot_info.dart';
+import 'package:mayak/backend/modules/messages.dart';
+import 'package:mayak/models/attachment.dart';
+import 'package:mayak/models/bot_info.dart';
 
 void main() {
   group('botStarted control message', () {

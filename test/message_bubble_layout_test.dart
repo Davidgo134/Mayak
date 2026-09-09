@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:komet/backend/modules/messages.dart';
-import 'package:komet/core/config/komet_settings.dart';
-import 'package:komet/frontend/widgets/message_bubble.dart';
-import 'package:komet/l10n/app_localizations.dart';
-import 'package:komet/models/attachment.dart';
+import 'package:mayak/backend/modules/messages.dart';
+import 'package:mayak/core/config/mayak_settings.dart';
+import 'package:mayak/frontend/widgets/message_bubble.dart';
+import 'package:mayak/l10n/app_localizations.dart';
+import 'package:mayak/models/attachment.dart';
 
 const int _me = 1;
 const int _peer = 7;
@@ -300,8 +300,8 @@ void main() {
   testWidgets('часы с секундами ни на какой длине не наезжают на текст', (
     tester,
   ) async {
-    KometSettings.fullTimestamp.value = true;
-    addTearDown(() => KometSettings.fullTimestamp.value = false);
+    MayakSettings.fullTimestamp.value = true;
+    addTearDown(() => MayakSettings.fullTimestamp.value = false);
 
     for (var n = 8; n <= 44; n++) {
       await _pumpBubble(

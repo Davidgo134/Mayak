@@ -3,7 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'build_profile.dart';
 
-class KometSettings {
+class MayakSettings {
   static const _kViewDeleted = 'komet_view_deleted';
   static const _kViewRedacted = 'komet_view_redacted';
   static const _kFullTimestamp = 'komet_full_timestamp';

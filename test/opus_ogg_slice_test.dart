@@ -1,8 +1,8 @@
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:komet/core/media/ogg_page_writer.dart';
-import 'package:komet/core/media/opus_ogg_index.dart';
+import 'package:mayak/core/media/ogg_page_writer.dart';
+import 'package:mayak/core/media/opus_ogg_index.dart';
 
 const int _sampleRate = 48000;
 const int _packetSamples = 960;

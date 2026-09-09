@@ -4,7 +4,7 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../../backend/modules/messages.dart';
 import '../../../../core/config/app_colors.dart';
-import '../../../../core/config/komet_settings.dart';
+import '../../../../core/config/mayak_settings.dart';
 import '../../../../core/utils/format.dart';
 import '../../../../core/utils/text_format.dart';
 import '../../../../models/attachment.dart';
@@ -158,7 +158,7 @@ class BubbleContext {
   );
 
   String get clockText {
-    final full = KometSettings.fullTimestamp.value;
+    final full = MayakSettings.fullTimestamp.value;
     final cached = _clockTextCache[message];
     if (cached != null && cached.full == full) return cached.text;
     final t = formatClock(

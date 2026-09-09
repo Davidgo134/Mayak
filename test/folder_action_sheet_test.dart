@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:komet/backend/models/chat_folder.dart';
-import 'package:komet/backend/modules/folders.dart';
-import 'package:komet/frontend/screens/chats/folder_action_sheet.dart';
+import 'package:mayak/backend/models/chat_folder.dart';
+import 'package:mayak/backend/modules/folders.dart';
+import 'package:mayak/frontend/screens/chats/folder_action_sheet.dart';
 
 Future<void> _openSheet(WidgetTester tester, ChatFolder folder) async {
   await tester.pumpWidget(

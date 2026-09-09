@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:komet/frontend/widgets/custom_notification.dart';
+import 'package:mayak/frontend/widgets/custom_notification.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 class AttachmentPanel extends StatefulWidget {

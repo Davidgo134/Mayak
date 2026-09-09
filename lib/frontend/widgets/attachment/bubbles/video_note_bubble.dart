@@ -8,7 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:video_player/video_player.dart';
-import 'package:komet/main.dart';
+import 'package:mayak/main.dart';
 
 import '../../../../core/media/media_playback.dart';
 import '../../../../core/media/video_note_frame.dart';

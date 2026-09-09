@@ -8,7 +8,7 @@ import 'package:kolibri/kolibri.dart' show initKolibri;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:video_player_media_kit/video_player_media_kit.dart';
-import 'package:komet/l10n/app_localizations.dart';
+import 'package:mayak/l10n/app_localizations.dart';
 import 'package:m3e_collection/m3e_collection.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -26,7 +26,7 @@ import 'core/config/app_amoled.dart';
 import 'core/config/app_show_extra_info.dart';
 import 'core/config/app_spectrum_background.dart';
 import 'core/config/app_bubble_behavior.dart';
-import 'core/config/komet_settings.dart';
+import 'core/config/mayak_settings.dart';
 import 'core/config/call_no_mute.dart';
 import 'core/config/debug_test.dart';
 import 'core/config/app_bubble_shape.dart';
@@ -258,8 +258,8 @@ void main(List<String> args) async {
   await DraftStore.instance.load();
   await ArchivedChatsStore.instance.load();
   await ChatEncryptionStore.instance.load();
-  await KometSettings.load();
-  if (KometSettings.ghostMode.value) SelfPresence.markOffline();
+  await MayakSettings.load();
+  if (MayakSettings.ghostMode.value) SelfPresence.markOffline();
   await ContactCache.load();
   final initialFpsOverlay = prefs.getBool('dev_fps_overlay') ?? false;
   final initialVpnBypass =
@@ -314,7 +314,7 @@ void main(List<String> args) async {
   await trafficCaptureFuture;
   await debugLogFuture;
   runApp(
-    KometApp(
+    MayakApp(
       initialLocale: initialLocale,
       initialFpsOverlay: initialFpsOverlay,
       initialVpnBypass: initialVpnBypass,
@@ -326,8 +326,8 @@ void main(List<String> args) async {
   );
 }
 
-class KometApp extends StatefulWidget {
-  const KometApp({
+class MayakApp extends StatefulWidget {
+  const MayakApp({
     super.key,
     required this.initialLocale,
     this.initialFpsOverlay = false,
@@ -347,15 +347,15 @@ class KometApp extends StatefulWidget {
   final Color? initialAccentSeed;
   static final navigatorKey = GlobalKey<NavigatorState>();
 
-  static KometAppState? stateOf(BuildContext context) {
-    return context.findAncestorStateOfType<KometAppState>();
+  static MayakAppState? stateOf(BuildContext context) {
+    return context.findAncestorStateOfType<MayakAppState>();
   }
 
   @override
-  State<KometApp> createState() => KometAppState();
+  State<MayakApp> createState() => MayakAppState();
 }
 
-class KometAppState extends State<KometApp>
+class MayakAppState extends State<MayakApp>
     with WidgetsBindingObserver, TickerProviderStateMixin {
   static const _fallbackSeed = Color(0xFFC1C4FF);
 
@@ -474,7 +474,7 @@ class KometAppState extends State<KometApp>
         await accountModule.removeAccount(accountId);
       }
 
-      final navState = KometApp.navigatorKey.currentState;
+      final navState = MayakApp.navigatorKey.currentState;
       if (navState != null) {
         final overlay = navState.overlay;
         if (overlay != null) {
@@ -504,7 +504,7 @@ class KometAppState extends State<KometApp>
       _lastVpnNotice = msg;
       _lastVpnNoticeAt = now;
 
-      final overlay = KometApp.navigatorKey.currentState?.overlay;
+      final overlay = MayakApp.navigatorKey.currentState?.overlay;
       if (overlay != null) {
         showCustomNotificationOnOverlay(overlay, msg);
       }
@@ -519,15 +519,15 @@ class KometAppState extends State<KometApp>
       _lastServerError = msg;
       _lastServerErrorAt = now;
 
-      final overlay = KometApp.navigatorKey.currentState?.overlay;
+      final overlay = MayakApp.navigatorKey.currentState?.overlay;
       if (overlay != null) {
         showCustomNotificationOnOverlay(overlay, msg);
       }
     });
 
     _accountNoticeSub = accountModule.noticeStream.listen((notice) {
-      final overlay = KometApp.navigatorKey.currentState?.overlay;
-      final ctx = KometApp.navigatorKey.currentContext;
+      final overlay = MayakApp.navigatorKey.currentState?.overlay;
+      final ctx = MayakApp.navigatorKey.currentContext;
       if (overlay == null || ctx == null || !ctx.mounted) return;
       final l10n = AppLocalizations.of(ctx);
       if (l10n == null) return;
@@ -560,7 +560,7 @@ class KometAppState extends State<KometApp>
   void _presentIncomingCall() {
     final call = _pendingIncoming;
     if (call == null || _incomingRouteActive || !_shellReady) return;
-    final navState = KometApp.navigatorKey.currentState;
+    final navState = MayakApp.navigatorKey.currentState;
     if (navState == null) {
       WidgetsBinding.instance.addPostFrameCallback(
         (_) => _presentIncomingCall(),
@@ -711,7 +711,7 @@ class KometAppState extends State<KometApp>
   }
 
   void _runThemeReveal(Offset center, Future<void> Function() apply) {
-    final overlay = KometApp.navigatorKey.currentState?.overlay;
+    final overlay = MayakApp.navigatorKey.currentState?.overlay;
     final ctx = _captureBoundaryKey.currentContext;
     if (overlay == null || ctx == null) {
       apply();
@@ -1020,7 +1020,7 @@ class KometAppState extends State<KometApp>
               supportedLocales: AppLocalizations.supportedLocales,
               theme: _lightTheme,
               darkTheme: _darkTheme,
-              navigatorKey: KometApp.navigatorKey,
+              navigatorKey: MayakApp.navigatorKey,
               navigatorObservers: [appRouteObserver],
               builder: (context, child) {
                 return ValueListenableBuilder<double>(
@@ -1093,7 +1093,7 @@ class _StartupScreenState extends State<_StartupScreen> {
         context,
         MaterialPageRoute(builder: (_) => const AdaptiveShell()),
       );
-      KometApp.stateOf(context)?.markShellReady();
+      MayakApp.stateOf(context)?.markShellReady();
       return;
     }
 
@@ -1116,7 +1116,7 @@ class _StartupScreenState extends State<_StartupScreen> {
       context,
       MaterialPageRoute(builder: (_) => const AdaptiveShell()),
     );
-    KometApp.stateOf(context)?.markShellReady();
+    MayakApp.stateOf(context)?.markShellReady();
   }
 
   Future<int?> _recoverActiveAccount() async {
@@ -1138,7 +1138,7 @@ class _StartupScreenState extends State<_StartupScreen> {
         context,
         MaterialPageRoute(builder: (_) => const LoginScreen()),
       );
-      KometApp.stateOf(context)?.markShellReady();
+      MayakApp.stateOf(context)?.markShellReady();
     }
   }
 

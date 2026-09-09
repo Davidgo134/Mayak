@@ -4,10 +4,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
-import 'package:komet/core/media/gallery_source.dart';
-import 'package:komet/frontend/widgets/attachment/photo_editor.dart';
-import 'package:komet/frontend/widgets/attachment/photo_hero.dart';
-import 'package:komet/frontend/widgets/custom_notification.dart';
+import 'package:mayak/core/media/gallery_source.dart';
+import 'package:mayak/frontend/widgets/attachment/photo_editor.dart';
+import 'package:mayak/frontend/widgets/attachment/photo_hero.dart';
+import 'package:mayak/frontend/widgets/custom_notification.dart';
 
 import 'editor_common.dart';
 import 'preview_chrome.dart';

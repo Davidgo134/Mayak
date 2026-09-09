@@ -2,12 +2,12 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:komet/backend/modules/contacts.dart';
-import 'package:komet/backend/modules/messages.dart';
-import 'package:komet/core/storage/app_database.dart';
-import 'package:komet/frontend/widgets/message_bubble.dart';
-import 'package:komet/l10n/app_localizations.dart';
-import 'package:komet/models/attachment.dart';
+import 'package:mayak/backend/modules/contacts.dart';
+import 'package:mayak/backend/modules/messages.dart';
+import 'package:mayak/core/storage/app_database.dart';
+import 'package:mayak/frontend/widgets/message_bubble.dart';
+import 'package:mayak/l10n/app_localizations.dart';
+import 'package:mayak/models/attachment.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 

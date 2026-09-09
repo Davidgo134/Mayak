@@ -26,22 +26,22 @@ import com.google.firebase.messaging.RemoteMessage
 import org.json.JSONArray
 import org.json.JSONObject
 
-class KometFcmService : FirebaseMessagingService() {
+class MayakFcmService : FirebaseMessagingService() {
     override fun onMessageReceived(message: RemoteMessage) {
         val data = message.data
-        Log.d("KometFcm", "onMessageReceived type=${data["type"]} keys=${data.keys}")
+        Log.d("MayakFcm", "onMessageReceived type=${data["type"]} keys=${data.keys}")
         if (data.isEmpty()) return
         val type = data["type"]
         FkmState.restore(applicationContext)
         if (FkmState.enabled && type != "InboundCall" && type != "CallFinished") {
-            Log.d("KometFcm", "message push dropped: FKM handles messages")
+            Log.d("MayakFcm", "message push dropped: FKM handles messages")
             return
         }
-        KometNotifier(applicationContext).handle(data)
+        MayakNotifier(applicationContext).handle(data)
     }
 }
 
-class KometNotifier(private val ctx: Context) {
+class MayakNotifier(private val ctx: Context) {
 
     companion object {
         private const val CHANNEL_ID = "komet_messages"
@@ -336,7 +336,7 @@ class KometNotifier(private val ctx: Context) {
             .setShowWhen(true)
             .setNumber(entries.size)
             .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
-            .setContentTitle("Komet")
+            .setContentTitle("Маяк")
             .setContentText(boldLine(newest.first, newest.second))
             .setStyle(inbox)
             .build()
@@ -399,7 +399,7 @@ class KometNotifier(private val ctx: Context) {
                 .build()
             ShortcutManagerCompat.pushDynamicShortcut(ctx, shortcut)
         } catch (e: Exception) {
-            Log.w("KometFcm", "shortcut push failed: $e")
+            Log.w("MayakFcm", "shortcut push failed: $e")
         }
     }
 

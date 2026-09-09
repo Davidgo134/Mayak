@@ -10,7 +10,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../../../core/cache/self_presence.dart';
 import '../../../core/config/build_profile.dart';
 import '../../../core/config/app_colors.dart';
-import '../../../core/config/komet_settings.dart';
+import '../../../core/config/mayak_settings.dart';
 import '../../../core/config/app_show_extra_info.dart';
 import '../../../core/storage/app_database.dart';
 import '../../../core/utils/format.dart';
@@ -81,7 +81,7 @@ class _SettingsTabState extends State<SettingsTab> with SpectrumSurface {
     super.initState();
     _loadProfile();
     _loadAppVersion();
-    final appState = KometApp.stateOf(context);
+    final appState = MayakApp.stateOf(context);
     if (appState != null) {
       _profileUpdateSub = appState.profileUpdateStream.listen((_) {
         if (mounted) _loadProfile();
@@ -323,7 +323,7 @@ class _SettingsTabState extends State<SettingsTab> with SpectrumSurface {
   }
 
   Future<void> _doLogout() async {
-    final navState = KometApp.navigatorKey.currentState;
+    final navState = MayakApp.navigatorKey.currentState;
     try {
       await accountModule.logout();
     } catch (e) {
@@ -362,7 +362,7 @@ class _SettingsTabState extends State<SettingsTab> with SpectrumSurface {
     final hasPhoto = (_profile!.baseUrl ?? '').isNotEmpty;
 
     return ValueListenableBuilder<bool>(
-      valueListenable: KometSettings.selfOnlineCheck,
+      valueListenable: MayakSettings.selfOnlineCheck,
       builder: (context, statusEnabled, _) {
         final collapsedH = topPad + (statusEnabled ? 268.0 : 242.0);
         final expandedH = hasPhoto
@@ -634,7 +634,7 @@ class _SettingsTabState extends State<SettingsTab> with SpectrumSurface {
                               context,
                               MaterialPageRoute(
                                 builder: (context) =>
-                                    const KometSettingsScreen(),
+                                    const MayakSettingsScreen(),
                               ),
                             );
                           },
@@ -1021,7 +1021,7 @@ class _SettingsTabState extends State<SettingsTab> with SpectrumSurface {
 
   Widget _buildOnlineStatus(ColorScheme cs, {Color? textColor}) {
     return ValueListenableBuilder<bool>(
-      valueListenable: KometSettings.selfOnlineCheck,
+      valueListenable: MayakSettings.selfOnlineCheck,
       builder: (context, enabled, _) {
         if (!enabled) return const SizedBox.shrink();
         return Padding(

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:komet/frontend/screens/chats/chat/chat_controller.dart';
+import 'package:mayak/frontend/screens/chats/chat/chat_controller.dart';
 
 const double _itemHeight = 60;
 const double _newestHeight = 84;
