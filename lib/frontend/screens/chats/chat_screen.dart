@@ -102,6 +102,7 @@ import '../../../core/utils/text_format.dart';
 import '../../widgets/confirm_dialog.dart';
 import '../../widgets/connection_status.dart';
 import '../../widgets/message_bubble.dart';
+import '../../widgets/attachment/bubbles/video_note_bubble.dart';
 import '../../widgets/photo_viewer.dart';
 import '../../widgets/message_actions_overlay.dart';
 import '../../widgets/lottie_image.dart';
@@ -5450,7 +5451,12 @@ class _ChatScreenState extends State<ChatScreen>
                   backgroundColor: cs.surface,
                   extendBodyBehindAppBar: underlap,
                   appBar: _buildAppBar(cs),
-                  body: body,
+                  body: Listener(
+                    behavior: HitTestBehavior.translucent,
+                    onPointerDown: (event) =>
+                        VideoNoteBubble.collapseOutside(event.position),
+                    child: body,
+                  ),
                 ),
               ),
             ),
