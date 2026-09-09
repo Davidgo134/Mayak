@@ -1,11 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import 'package:komet/main.dart';
+import 'package:mayak/main.dart';
 
 import '../../../../backend/modules/messages.dart';
 import '../../../../core/config/app_colors.dart';
-import '../../../../core/config/komet_settings.dart';
+import '../../../../core/config/mayak_settings.dart';
 import '../../../../core/media/media_playback.dart';
 import '../../../../core/media/voice_audio_controller.dart';
 import '../../../../core/utils/format.dart';
@@ -408,7 +408,7 @@ class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
                 Text(
                   formatClock(
                     DateTime.fromMillisecondsSinceEpoch(widget.time),
-                    withSeconds: KometSettings.fullTimestamp.value,
+                    withSeconds: MayakSettings.fullTimestamp.value,
                   ),
                   style: TextStyle(
                     color: widget.textColor.withValues(alpha: 0.6),
@@ -437,7 +437,7 @@ class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
                 Text(
                   formatClock(
                     DateTime.fromMillisecondsSinceEpoch(widget.time),
-                    withSeconds: KometSettings.fullTimestamp.value,
+                    withSeconds: MayakSettings.fullTimestamp.value,
                   ),
                   style: TextStyle(
                     color: widget.textColor.withValues(alpha: 0.6),

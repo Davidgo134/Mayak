@@ -46,7 +46,7 @@ class CallForegroundService : Service() {
                     ctx.startService(intent)
                 }
             } catch (e: Exception) {
-                Log.w("KometFcm", "screen share FGS update failed: ${e.message}")
+                Log.w("MayakFcm", "screen share FGS update failed: ${e.message}")
             }
         }
 
@@ -63,7 +63,7 @@ class CallForegroundService : Service() {
                     ctx.startService(intent)
                 }
             } catch (e: Exception) {
-                Log.w("KometFcm", "ongoing FGS start failed: ${e.message}")
+                Log.w("MayakFcm", "ongoing FGS start failed: ${e.message}")
             }
         }
 
@@ -160,7 +160,7 @@ class CallForegroundService : Service() {
                 startForeground(ONGOING_ID, notif)
             }
         } catch (e: Exception) {
-            Log.w("KometFcm", "startForeground failed: ${e.message}")
+            Log.w("MayakFcm", "startForeground failed: ${e.message}")
             stopSelf()
         }
     }

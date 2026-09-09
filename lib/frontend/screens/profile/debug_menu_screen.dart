@@ -200,7 +200,7 @@ class _DebugMenuScreenState extends State<DebugMenuScreen> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final appState = KometApp.stateOf(context);
+    final appState = MayakApp.stateOf(context);
 
     return Scaffold(
       backgroundColor: cs.surface,

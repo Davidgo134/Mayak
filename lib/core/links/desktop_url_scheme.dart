@@ -48,7 +48,7 @@ abstract class DesktopUrlScheme {
     final mimeTypes = _schemes.map((s) => 'x-scheme-handler/$s').join(';');
     final desktop = '[Desktop Entry]\n'
         'Type=Application\n'
-        'Name=Komet\n'
+        'Name=Mayak\n'
         'Exec="$exe" %u\n'
         'Terminal=false\n'
         'NoDisplay=true\n'

@@ -11,7 +11,7 @@ import '../../core/protocol/opcode_map.dart';
 import '../../core/protocol/packet.dart';
 import '../../core/storage/app_database.dart';
 import '../../core/storage/token_storage.dart';
-import '../config/komet_settings.dart';
+import '../config/mayak_settings.dart';
 import '../utils/logger.dart';
 import 'fkm_bridge.dart';
 import 'push_service.dart';
@@ -196,7 +196,7 @@ class FkmController {
       FkmBridge.instance.removeMessage({
         'mc': '$chatId',
         'msgid': msgId,
-        'keep': KometSettings.viewDeleted.value ? 'true' : 'false',
+        'keep': MayakSettings.viewDeleted.value ? 'true' : 'false',
       });
 
   Future<void> _editNotification(

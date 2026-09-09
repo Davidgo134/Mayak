@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:komet/backend/modules/messages.dart';
+import 'package:mayak/backend/modules/messages.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:komet/core/storage/chat_activity_store.dart';
-import 'package:komet/core/storage/chat_members_store.dart';
-import 'package:komet/frontend/screens/chats/chat/typing_label.dart';
+import 'package:mayak/core/storage/chat_activity_store.dart';
+import 'package:mayak/core/storage/chat_members_store.dart';
+import 'package:mayak/frontend/screens/chats/chat/typing_label.dart';
 
 const int _chatId = 900001;
 const int _alice = 900101;

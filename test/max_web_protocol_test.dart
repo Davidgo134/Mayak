@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:komet/core/webpush/max_web_protocol.dart';
+import 'package:mayak/core/webpush/max_web_protocol.dart';
 
 Uint8List _hex(String value) {
   final bytes = Uint8List(value.length ~/ 2);

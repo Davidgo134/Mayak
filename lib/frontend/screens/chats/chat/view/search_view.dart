@@ -3,15 +3,15 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
-import 'package:komet/core/config/app_animations.dart';
-import 'package:komet/core/config/app_chat_chrome.dart';
-import 'package:komet/core/utils/format.dart';
-import 'package:komet/frontend/widgets/animated_lottie_icon.dart';
-import 'package:komet/frontend/widgets/glossy_pill.dart';
-import 'package:komet/frontend/widgets/komet_avatar.dart';
-import 'package:komet/frontend/widgets/small_spinner.dart';
-import 'package:komet/frontend/screens/chats/chat/chat_search_controller.dart';
-import 'package:komet/frontend/screens/chats/chat/message_search_result.dart';
+import 'package:mayak/core/config/app_animations.dart';
+import 'package:mayak/core/config/app_chat_chrome.dart';
+import 'package:mayak/core/utils/format.dart';
+import 'package:mayak/frontend/widgets/animated_lottie_icon.dart';
+import 'package:mayak/frontend/widgets/glossy_pill.dart';
+import 'package:mayak/frontend/widgets/komet_avatar.dart';
+import 'package:mayak/frontend/widgets/small_spinner.dart';
+import 'package:mayak/frontend/screens/chats/chat/chat_search_controller.dart';
+import 'package:mayak/frontend/screens/chats/chat/message_search_result.dart';
 import '../../../../../core/config/app_fonts.dart';
 
 class SearchTopBar extends StatelessWidget {

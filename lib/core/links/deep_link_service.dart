@@ -100,7 +100,7 @@ class DeepLinkService {
   }
 
   void _flushPending() {
-    final context = KometApp.navigatorKey.currentContext;
+    final context = MayakApp.navigatorKey.currentContext;
 
     if (_pendingLogExport) {
       if (context == null) {

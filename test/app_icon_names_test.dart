@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:komet/core/config/app_icon.dart';
+import 'package:mayak/core/config/app_icon.dart';
 
 Set<String> _iosAlternateIcons() {
   final plist = File('ios/Runner/Info.plist').readAsStringSync();

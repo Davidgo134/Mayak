@@ -5,9 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
-import 'package:komet/core/media/video_transcoder.dart';
-import 'package:komet/frontend/widgets/attachment/editor_common.dart';
-import 'package:komet/frontend/widgets/attachment/video_edit.dart';
+import 'package:mayak/core/media/video_transcoder.dart';
+import 'package:mayak/frontend/widgets/attachment/editor_common.dart';
+import 'package:mayak/frontend/widgets/attachment/video_edit.dart';
 
 class _FakePathProvider extends PathProviderPlatform
     with MockPlatformInterfaceMixin {

@@ -3,7 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
-import '../../core/config/komet_settings.dart';
+import '../../core/config/mayak_settings.dart';
 import '../../core/protocol/opcode_map.dart';
 import '../../core/protocol/packet.dart';
 import '../../core/cache/info_cache.dart';
@@ -472,7 +472,7 @@ class ChatsModule {
     if ((row['unread_count'] as int? ?? 0) == 0) return;
 
     final msgIdNum = int.tryParse(messageId);
-    if (msgIdNum != null && !KometSettings.antiRead.value) {
+    if (msgIdNum != null && !MayakSettings.antiRead.value) {
       try {
         await api.sendRequest(Opcode.chatMark, {
           'type': 'READ_MESSAGE',
@@ -501,7 +501,7 @@ class ChatsModule {
     required int remaining,
   }) async {
     final msgIdNum = int.tryParse(messageId);
-    if (msgIdNum != null && !KometSettings.antiRead.value) {
+    if (msgIdNum != null && !MayakSettings.antiRead.value) {
       try {
         await api.sendRequest(Opcode.chatMark, {
           'type': 'READ_MESSAGE',
@@ -737,7 +737,7 @@ class ChatsModule {
     }
     if (chatId == null) return;
 
-    final keepDeleted = KometSettings.viewDeleted.value;
+    final keepDeleted = MayakSettings.viewDeleted.value;
     final ids = payload['messageIds'];
     if (ids is List) {
       for (final raw in ids) {
@@ -803,7 +803,7 @@ class ChatsModule {
     }
 
     if (status == 'REMOVED' && msgIdStr != null) {
-      final keepDeleted = KometSettings.viewDeleted.value;
+      final keepDeleted = MayakSettings.viewDeleted.value;
       if (keepDeleted) {
         await AppDatabase.markMessageDeleted(accountId, chatId, msgIdStr);
       } else {
@@ -847,7 +847,7 @@ class ChatsModule {
           mergedPayload[entry.key.toString()] = entry.value;
         }
         final newRow = Map<String, dynamic>.from(existing);
-        if (KometSettings.viewRedacted.value) {
+        if (MayakSettings.viewRedacted.value) {
           final oldText = existing['text']?.toString();
           if ((oldText ?? '') != (msgText ?? '') &&
               oldText != null &&

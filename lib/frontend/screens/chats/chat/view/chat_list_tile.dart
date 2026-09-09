@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
-import 'package:komet/core/storage/chat_activity_store.dart';
-import 'package:komet/frontend/screens/chats/chat/typing_label.dart';
-import 'package:komet/frontend/widgets/animated_text_swap.dart';
+import 'package:mayak/core/storage/chat_activity_store.dart';
+import 'package:mayak/frontend/screens/chats/chat/typing_label.dart';
+import 'package:mayak/frontend/widgets/animated_text_swap.dart';
 
 class AnimatedChatTile extends StatefulWidget {
   final Widget child;

@@ -85,7 +85,7 @@ class ShareIntentBridge {
     final payload = _pending;
     if (payload == null || _presenting) return;
 
-    final context = KometApp.navigatorKey.currentContext;
+    final context = MayakApp.navigatorKey.currentContext;
     if (!_ready || context == null || api.state != SessionState.online) {
       if (_retriesLeft <= 0) {
         _pending = null;

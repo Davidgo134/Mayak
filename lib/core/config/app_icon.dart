@@ -8,7 +8,7 @@ enum AppIcon {
   defaultIcon(
     'default',
     'Default',
-    'assets/komet_icon.png',
+    'assets/mayak_icon.png',
     'MainActivity',
     null,
   ),

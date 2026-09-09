@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:komet/backend/modules/messages.dart';
-import 'package:komet/frontend/screens/chats/chat/view/selection_bar.dart';
+import 'package:mayak/backend/modules/messages.dart';
+import 'package:mayak/frontend/screens/chats/chat/view/selection_bar.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 const int _me = 1;

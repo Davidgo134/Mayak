@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
-import 'package:komet/backend/modules/contacts.dart';
-import 'package:komet/frontend/screens/contacts/contact_sheet_common.dart';
-import 'package:komet/frontend/widgets/custom_notification.dart';
-import 'package:komet/frontend/widgets/komet_avatar.dart';
-import 'package:komet/l10n/app_localizations.dart';
-import 'package:komet/main.dart';
+import 'package:mayak/backend/modules/contacts.dart';
+import 'package:mayak/frontend/screens/contacts/contact_sheet_common.dart';
+import 'package:mayak/frontend/widgets/custom_notification.dart';
+import 'package:mayak/frontend/widgets/komet_avatar.dart';
+import 'package:mayak/l10n/app_localizations.dart';
+import 'package:mayak/main.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import '../../../core/config/app_shape.dart';
 

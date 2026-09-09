@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:komet/backend/models/chat_folder.dart';
-import 'package:komet/backend/modules/chats.dart';
-import 'package:komet/backend/modules/folders.dart';
+import 'package:mayak/backend/models/chat_folder.dart';
+import 'package:mayak/backend/modules/chats.dart';
+import 'package:mayak/backend/modules/folders.dart';
 
 const int _me = 4242;
 const int _contactId = 777;

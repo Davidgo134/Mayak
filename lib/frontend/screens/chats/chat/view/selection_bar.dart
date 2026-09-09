@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import 'package:komet/backend/modules/messages.dart';
-import 'package:komet/frontend/widgets/glossy_pill.dart';
+import 'package:mayak/backend/modules/messages.dart';
+import 'package:mayak/frontend/widgets/glossy_pill.dart';
 import '../../../../../core/config/app_fonts.dart';
 
 class SelectionTopBar extends StatelessWidget {

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:komet/core/contacts/contact_labels.dart';
+import 'package:mayak/core/contacts/contact_labels.dart';
 
 void main() {
   group('contactLabels', () {

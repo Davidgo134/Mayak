@@ -393,7 +393,7 @@ class MainActivity : FlutterActivity() {
                                 ),
                             )
                         } catch (e: Exception) {
-                            Log.w("KometFcm", "open FSI settings failed: ${e.message}")
+                            Log.w("MayakFcm", "open FSI settings failed: ${e.message}")
                         }
                     }
                     result.success(null)
@@ -966,7 +966,7 @@ class MainActivity : FlutterActivity() {
     override fun onDestroy() {
         shareExecutor.shutdown()
         if (keepEngineAlive() && isFinishing) {
-            Log.d("KometFcm", "task removed, caching engine (call=${CallState.inCall} fkm=${FkmState.enabled})")
+            Log.d("MayakFcm", "task removed, caching engine (call=${CallState.inCall} fkm=${FkmState.enabled})")
             flutterEngine?.let { FlutterEngineCache.getInstance().put(KEEP_ENGINE_ID, it) }
         }
         super.onDestroy()

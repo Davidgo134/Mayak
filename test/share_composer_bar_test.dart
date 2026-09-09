@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import 'package:komet/backend/modules/share_sender.dart';
-import 'package:komet/frontend/screens/chats/share_composer_bar.dart';
-import 'package:komet/frontend/widgets/rich_message_controller.dart';
-import 'package:komet/models/shared_payload.dart';
+import 'package:mayak/backend/modules/share_sender.dart';
+import 'package:mayak/frontend/screens/chats/share_composer_bar.dart';
+import 'package:mayak/frontend/widgets/rich_message_controller.dart';
+import 'package:mayak/models/shared_payload.dart';
 
 PreparedShareFile _file(String name, String mime) => PreparedShareFile(
   source: SharedFile(path: '/synthetic/$name', name: name, mime: mime, size: 8),

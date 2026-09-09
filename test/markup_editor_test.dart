@@ -6,8 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
-import 'package:komet/frontend/widgets/attachment/photo_editor.dart';
-import 'package:komet/l10n/app_localizations.dart';
+import 'package:mayak/frontend/widgets/attachment/photo_editor.dart';
+import 'package:mayak/l10n/app_localizations.dart';
 
 void main() {
   late Directory tmp;

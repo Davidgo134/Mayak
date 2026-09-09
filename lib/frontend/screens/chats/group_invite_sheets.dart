@@ -2,16 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
-import 'package:komet/main.dart';
-import 'package:komet/backend/modules/chats.dart';
-import 'package:komet/backend/modules/contacts.dart';
-import 'package:komet/backend/modules/messages.dart' show ContactCache;
-import 'package:komet/core/storage/app_database.dart';
-import 'package:komet/core/storage/token_storage.dart';
-import 'package:komet/frontend/screens/contacts/contact_sheet_common.dart';
-import 'package:komet/frontend/widgets/custom_notification.dart';
-import 'package:komet/frontend/widgets/komet_avatar.dart';
-import 'package:komet/l10n/app_localizations.dart';
+import 'package:mayak/main.dart';
+import 'package:mayak/backend/modules/chats.dart';
+import 'package:mayak/backend/modules/contacts.dart';
+import 'package:mayak/backend/modules/messages.dart' show ContactCache;
+import 'package:mayak/core/storage/app_database.dart';
+import 'package:mayak/core/storage/token_storage.dart';
+import 'package:mayak/frontend/screens/contacts/contact_sheet_common.dart';
+import 'package:mayak/frontend/widgets/custom_notification.dart';
+import 'package:mayak/frontend/widgets/komet_avatar.dart';
+import 'package:mayak/l10n/app_localizations.dart';
 
 class _Candidate {
   final int id;

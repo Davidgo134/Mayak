@@ -3,9 +3,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
-import 'package:komet/core/config/chat_wallpaper_themes.dart';
-import 'package:komet/core/config/app_colors.dart';
-import 'package:komet/core/storage/chat_wallpaper_store.dart';
+import 'package:mayak/core/config/chat_wallpaper_themes.dart';
+import 'package:mayak/core/config/app_colors.dart';
+import 'package:mayak/core/storage/chat_wallpaper_store.dart';
 import 'chat_wallpaper_view.dart';
 import '../../core/config/app_fonts.dart';
 

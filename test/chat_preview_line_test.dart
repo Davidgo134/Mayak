@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:komet/frontend/screens/chats/chat/view/chat_preview_line.dart';
-import 'package:komet/models/chat_preview_media.dart';
+import 'package:mayak/frontend/screens/chats/chat/view/chat_preview_line.dart';
+import 'package:mayak/models/chat_preview_media.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 const String _pixel =

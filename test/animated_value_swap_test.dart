@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:komet/frontend/widgets/animated_text_swap.dart';
+import 'package:mayak/frontend/widgets/animated_text_swap.dart';
 
 Widget _host(int value) => MaterialApp(
   home: Scaffold(

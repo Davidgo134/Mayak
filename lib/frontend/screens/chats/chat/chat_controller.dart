@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../../../../backend/modules/chats.dart';
 import '../../../../backend/modules/messages.dart';
 import '../../../../core/cache/message_session_cache.dart';
-import '../../../../core/config/komet_settings.dart';
+import '../../../../core/config/mayak_settings.dart';
 import '../../../../core/storage/app_database.dart';
 import '../../../../core/utils/logger.dart';
 import '../../../../main.dart';
@@ -168,7 +168,7 @@ class ChatController extends ChangeNotifier {
     required int targetTime,
   }) async {
     if (myId == 0 || targetTime <= 0) return false;
-    final onlyVisible = !KometSettings.viewDeleted.value;
+    final onlyVisible = !MayakSettings.viewDeleted.value;
 
     var window = await loadWindowFromDb(targetTime, onlyVisible);
     if (!isMounted()) return false;
@@ -182,7 +182,7 @@ class ChatController extends ChangeNotifier {
         backward: jumpWindowBefore + 1,
       );
       if (!isMounted()) return false;
-      if (fetched.isNotEmpty && KometSettings.viewDeleted.value) {
+      if (fetched.isNotEmpty && MayakSettings.viewDeleted.value) {
         await chats.reconcileDeletedFromFetch(myId, chatId, fetched);
       }
       window = await loadWindowFromDb(targetTime, onlyVisible);
@@ -236,7 +236,7 @@ class ChatController extends ChangeNotifier {
 
     loadingGap = true;
     try {
-      final onlyVisible = !KometSettings.viewDeleted.value;
+      final onlyVisible = !MayakSettings.viewDeleted.value;
       var slice = await loadGapSliceFromDb(
         gap.edgeTime,
         gap.tailTime,
@@ -253,7 +253,7 @@ class ChatController extends ChangeNotifier {
           backward: 0,
         );
         if (!isMounted()) return 0;
-        if (fetched.isNotEmpty && KometSettings.viewDeleted.value) {
+        if (fetched.isNotEmpty && MayakSettings.viewDeleted.value) {
           await chats.reconcileDeletedFromFetch(myId, chatId, fetched);
         }
         final refreshed = await loadGapSliceFromDb(
@@ -320,7 +320,7 @@ class ChatController extends ChangeNotifier {
 
     final size = pageSize ?? historyPageSize;
     final oldest = messages.first;
-    final onlyVisible = !KometSettings.viewDeleted.value;
+    final onlyVisible = !MayakSettings.viewDeleted.value;
 
     try {
       var older = await loadOlderFromDb(oldest.time, onlyVisible, limit: size);
@@ -333,7 +333,7 @@ class ChatController extends ChangeNotifier {
           count: size,
         );
         if (fetched.isNotEmpty) {
-          if (KometSettings.viewDeleted.value) {
+          if (MayakSettings.viewDeleted.value) {
             await chats.reconcileDeletedFromFetch(myId, chatId, fetched);
           }
           older = await loadOlderFromDb(oldest.time, onlyVisible, limit: size);
@@ -359,7 +359,7 @@ class ChatController extends ChangeNotifier {
     required void Function() onPreview,
     required void Function() onSenderNames,
   }) async {
-    final onlyVisible = !KometSettings.viewDeleted.value;
+    final onlyVisible = !MayakSettings.viewDeleted.value;
     final cachedRows = await AppDatabase.loadChat(myId, chatId);
     final preview =
         cachedRows.isEmpty || !AppDatabase.chatRowIsInList(cachedRows.first);
@@ -387,7 +387,7 @@ class ChatController extends ChangeNotifier {
     try {
       final serverMessages = await messagesModule.fetchHistory(myId, chatId);
       chats.markHistoryFetched(chatId);
-      if (KometSettings.viewDeleted.value) {
+      if (MayakSettings.viewDeleted.value) {
         await chats.reconcileDeletedFromFetch(myId, chatId, serverMessages);
       }
       final updatedDecoded = await loadInitialFromDb(onlyVisible: onlyVisible);

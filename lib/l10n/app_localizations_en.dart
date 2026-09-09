@@ -789,7 +789,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get devicesTitle => 'Devices';
 
   @override
-  String get devicesPromoTitle => 'Devices in KOMET';
+  String get devicesPromoTitle => 'Devices in Mayak';
 
   @override
   String get devicesPromoSubtitle => 'Who has access to your account?';
@@ -1003,7 +1003,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearancePreviewNotBad => 'Not bad at all!';
 
   @override
-  String get callKometDetectedNotification => 'This person uses Mayak! :3';
+  String get callMayakDetectedNotification => 'This person uses Mayak! :3';
 
   @override
   String get callStatusConnecting => 'Connecting';
@@ -1045,7 +1045,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get callTooltipExpand => 'Expand';
 
   @override
-  String get callTooltipKometHub => 'Mayak';
+  String get callTooltipMayakHub => 'Mayak';
 
   @override
   String get callInfoTitle => 'About call';
@@ -2758,7 +2758,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get webPushIntro =>
-      'Komet has no ordinary push on iOS: Apple issues a notification token only to apps signed with a developer certificate, and a sideloaded build never gets one.\n\nThe way around it is a web app on the Home Screen. MAX\'s own server sends the notifications through Apple, and a separate icon displays them.\n\nThat needs a web session. Komet creates one and approves it itself, from this very device — no phone number or code required.';
+      'Mayak has no ordinary push on iOS: Apple issues a notification token only to apps signed with a developer certificate, and a sideloaded build never gets one.\n\nThe way around it is a web app on the Home Screen. MAX\'s own server sends the notifications through Apple, and a separate icon displays them.\n\nThat needs a web session. Mayak creates one and approves it itself, from this very device — no phone number or code required.';
 
   @override
   String get webPushConfirm => 'Continue';
@@ -2780,7 +2780,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get webPushInstallBody =>
-      'Open push.komet.pw in Safari, add it to the Home Screen and launch the icon that appears. Notifications do not work from a browser tab — that is how iOS works.\n\nIn the app, allow notifications, create a subscription and tap \"Open Komet\". The subscription registers itself from there.';
+      'Open push.komet.pw in Safari, add it to the Home Screen and launch the icon that appears. Notifications do not work from a browser tab — that is how iOS works.\n\nIn the app, allow notifications, create a subscription and tap \"Open Mayak\". The subscription registers itself from there.';
 
   @override
   String get webPushLinkedTitle => 'Notifications connected';
@@ -2812,7 +2812,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get webPushWaitingBody =>
-      'Komet is approving the web session from this device. This usually takes a few seconds.';
+      'Mayak is approving the web session from this device. This usually takes a few seconds.';
 
   @override
   String get webPushNeedsOnline =>

@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:komet/core/calls/audio_devices.dart';
-import 'package:komet/core/calls/pulse_audio.dart';
-import 'package:komet/core/config/call_no_mute.dart';
+import 'package:mayak/core/calls/audio_devices.dart';
+import 'package:mayak/core/calls/pulse_audio.dart';
+import 'package:mayak/core/config/call_no_mute.dart';
 
 const _deviceId = 'mic-test-0';
 

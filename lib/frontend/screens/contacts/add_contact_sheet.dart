@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import 'package:komet/backend/modules/contacts.dart';
-import 'package:komet/core/config/countries.dart';
-import 'package:komet/frontend/screens/auth/phone_input_formatter.dart';
-import 'package:komet/frontend/screens/auth/select_country_screen.dart';
-import 'package:komet/frontend/screens/contacts/contact_sheet_common.dart';
-import 'package:komet/frontend/screens/contacts/open_contact_profile.dart';
-import 'package:komet/frontend/widgets/custom_notification.dart';
-import 'package:komet/l10n/app_localizations.dart';
-import 'package:komet/main.dart';
+import 'package:mayak/backend/modules/contacts.dart';
+import 'package:mayak/core/config/countries.dart';
+import 'package:mayak/frontend/screens/auth/phone_input_formatter.dart';
+import 'package:mayak/frontend/screens/auth/select_country_screen.dart';
+import 'package:mayak/frontend/screens/contacts/contact_sheet_common.dart';
+import 'package:mayak/frontend/screens/contacts/open_contact_profile.dart';
+import 'package:mayak/frontend/widgets/custom_notification.dart';
+import 'package:mayak/l10n/app_localizations.dart';
+import 'package:mayak/main.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 Future<void> showAddContactSheet(BuildContext context) {
