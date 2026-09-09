@@ -755,19 +755,28 @@ class AccountModule {
       return;
     }
     final resolved = <String, int>{};
-    // Диагностика: пишем всё, что прислал сервер, — чтобы увидеть настоящие
-    // иконки, если матч с 'digital'/'sferum' не срабатывает.
+    final debugItems = <String>[];
+    // Публичные метаданные баннеров: сохраняем также в Debug-карточку,
+    // чтобы не требовать от пользователя adb/logcat.
     for (final banner in banners) {
       final items = (banner is Map) ? banner['items'] : null;
       if (items is! List) continue;
       for (final item in items) {
         if (item is! Map) continue;
-        logger.i(
-          'entry-banners: appid=${item['appid']} '
-          'icon=${item['icon']} title=${item['title']}',
-        );
+        final appId = item['appid']?.toString() ?? '—';
+        final icon = item['icon']?.toString() ?? '—';
+        final title = item['title']?.toString() ?? '—';
+        debugItems.add('$appId | $icon | $title');
+        logger.i('entry-banners: appid=$appId icon=$icon title=$title');
       }
     }
+    await AppDatabase.setSyncValue(
+      accountId,
+      'entry_banner_debug_items',
+      debugItems.isEmpty
+          ? 'Сервер прислал settings-entry-banners, но items в них пусты'
+          : debugItems.join('\n'),
+    );
     for (final banner in banners) {
       final items = (banner is Map) ? banner['items'] : null;
       if (items is! List) continue;

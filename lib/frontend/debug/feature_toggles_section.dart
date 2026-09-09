@@ -173,12 +173,17 @@ class DebugFeatureTogglesSection extends StatelessWidget {
                   accountId,
                   'entry_banner_app_sferum',
                 ),
+                await AppDatabase.getSyncValue(
+                  accountId,
+                  'entry_banner_debug_items',
+                ),
               ];
             }(),
             builder: (context, snapshot) {
               final values = snapshot.data;
               final did = values == null ? null : values[0];
               final sferum = values == null ? null : values[1];
+              final raw = values == null ? null : values[2];
               return Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(
@@ -203,7 +208,9 @@ class DebugFeatureTogglesSection extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       'botId (digital): ${did ?? '— не найден: сервер не прислал или иконка не сматчилась'}\n'
-                      'botId (sferum): ${sferum ?? '— не найден'}',
+                      'botId (sferum): ${sferum ?? '— не найден'}'
+                      '\n\nПоследний login: appid | icon | title\n'
+                      '${raw ?? '— нет данных: после установки этой сборки выйдите и войдите в аккаунт'}',
                       style: TextStyle(
                         color: cs.onSurfaceVariant,
                         fontSize: 12,
