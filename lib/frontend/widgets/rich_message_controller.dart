@@ -436,14 +436,16 @@ class RichMessageController extends TextEditingController {
   WidgetSpan _animojiSpan(_AnimojiEntity entity, double box) {
     return WidgetSpan(
       alignment: PlaceholderAlignment.middle,
-      child: SizedBox(
-        key: ValueKey('composer-animoji-${entity.uid}'),
-        width: box,
-        height: box,
-        child: LottieImage(
-          lottieUrl: entity.lottieUrl,
-          size: box,
-          memCacheWidth: 120,
+      child: RepaintBoundary(
+        child: SizedBox(
+          key: ValueKey('composer-animoji-${entity.uid}'),
+          width: box,
+          height: box,
+          child: LottieImage(
+            lottieUrl: entity.lottieUrl,
+            size: box,
+            memCacheWidth: 120,
+          ),
         ),
       ),
     );

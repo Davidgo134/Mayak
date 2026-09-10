@@ -74,20 +74,22 @@ class FormattedMessageText extends StatefulWidget {
         spans.add(
           WidgetSpan(
             alignment: PlaceholderAlignment.middle,
-            child: SizedBox(
-              width: box,
-              height: box,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Text(content, style: style.copyWith(fontSize: fontSize)),
-                  LottieImage(
-                    lottieUrl: animojiUrl,
-                    size: box,
-                    memCacheWidth: 96,
-                    shimmer: false,
-                  ),
-                ],
+            child: RepaintBoundary(
+              child: SizedBox(
+                width: box,
+                height: box,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Text(content, style: style.copyWith(fontSize: fontSize)),
+                    LottieImage(
+                      lottieUrl: animojiUrl,
+                      size: box,
+                      memCacheWidth: 96,
+                      shimmer: false,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -287,24 +289,26 @@ class _FormattedMessageTextState extends State<FormattedMessageText> {
         spans.add(
           WidgetSpan(
             alignment: PlaceholderAlignment.middle,
-            child: SizedBox(
-              width: box,
-              height: box,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Text(
-                    content,
-                    style: widget.style.copyWith(fontSize: fontSize * 1.15),
-                  ),
-                  LottieImage(
-                    lottieUrl: segment.animojiUrl,
-                    size: box,
-                    memCacheWidth: 120,
-                    shimmer: false,
-                    eager: true,
-                  ),
-                ],
+            child: RepaintBoundary(
+              child: SizedBox(
+                width: box,
+                height: box,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Text(
+                      content,
+                      style: widget.style.copyWith(fontSize: fontSize * 1.15),
+                    ),
+                    LottieImage(
+                      lottieUrl: segment.animojiUrl,
+                      size: box,
+                      memCacheWidth: 120,
+                      shimmer: false,
+                      eager: true,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

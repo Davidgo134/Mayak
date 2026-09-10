@@ -372,11 +372,13 @@ class _LottiePlayerState extends State<LottiePlayer>
         _showedFrames = true;
         return ValueListenableBuilder<int>(
           valueListenable: _frameIndex,
-          builder: (_, index, _) => RawImage(
-            image: clip.frameAt(index),
-            width: box,
-            height: box,
-            fit: BoxFit.contain,
+          builder: (_, index, _) => RepaintBoundary(
+            child: RawImage(
+              image: clip.frameAt(index),
+              width: box,
+              height: box,
+              fit: BoxFit.contain,
+            ),
           ),
         );
       },
@@ -444,7 +446,12 @@ class LottieImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final staticUrl = url;
+    final hasStatic = staticUrl != null && staticUrl.isNotEmpty;
     if (lottieUrl != null && lottieUrl!.isNotEmpty) {
+      // Статичный режим со статичной картинкой: rlottie не нужен вовсе
+      // (экономим воркеры, память и декодирование кадров).
+      if (!animate && hasStatic) return _static();
       return LottiePlayer(
         lottieUrl: lottieUrl!,
         fallbackUrl: url,

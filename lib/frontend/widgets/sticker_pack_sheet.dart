@@ -277,12 +277,14 @@ class _StickerPackSheetState extends State<_StickerPackSheet> {
             url: item.url,
             lottieUrl: item.lottieUrl,
             tags: item.tags,
-            child: Padding(
-              padding: const EdgeInsets.all(6),
-              child: LottieImage(
-                url: item.url,
-                lottieUrl: item.lottieUrl,
-                memCacheWidth: 220,
+            child: RepaintBoundary(
+              child: Padding(
+                padding: const EdgeInsets.all(6),
+                // Статичное превью: анимация только в peek-оверлее.
+                child: LottieImage(
+                  url: item.url,
+                  memCacheWidth: 220,
+                ),
               ),
             ),
           );
