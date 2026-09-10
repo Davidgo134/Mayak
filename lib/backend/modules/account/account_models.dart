@@ -396,6 +396,9 @@ class LoginSyncParams {
   final String? configHash;
   final String? chatCacheFingerprint;
   final bool serverConfigSeen;
+  /// Сохранён ли botId мини-приложения Цифрового ID. Пока нет — нужно
+  /// получать полный serverConfig (без configHash), см. buildLoginPayload.
+  final bool digitalIdKnown;
 
   const LoginSyncParams({
     required this.chatsSync,
@@ -408,6 +411,7 @@ class LoginSyncParams {
     this.configHash,
     this.chatCacheFingerprint,
     this.serverConfigSeen = false,
+    this.digitalIdKnown = false,
   });
 
   static Future<LoginSyncParams?> fromDatabase(int accountId) async {
@@ -426,6 +430,8 @@ class LoginSyncParams {
       configHash: values[SyncKey.configHash],
       chatCacheFingerprint: values[SyncKey.chatCacheFingerprint],
       serverConfigSeen: values[SyncKey.serverConfigSeen] == '1',
+      digitalIdKnown:
+          (values['entry_banner_app_digital_id'] ?? '').isNotEmpty,
     );
   }
 }

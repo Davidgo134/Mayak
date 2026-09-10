@@ -593,7 +593,11 @@ class AccountModule {
       payload['draftsSync'] = sync.draftsSync;
       payload['bannersSync'] = sync.bannersSync;
       payload['lastLogin'] = sync.lastLogin;
-      if (sync.serverConfigSeen && sync.configHash != null) {
+      // configHash шлём только когда botId Цифрового ID уже сохранён:
+      // иначе сервер не пришлёт serverConfig и баннер никогда не появится.
+      if (sync.serverConfigSeen &&
+          sync.configHash != null &&
+          sync.digitalIdKnown) {
         payload['configHash'] = sync.configHash;
       }
     } else {
