@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
+
+import '../debug/spoof_section.dart';
 import '../../../backend/modules/chats.dart';
 import '../../../core/calls/call_controller.dart';
 import '../../../core/config/app_media_cache.dart';
@@ -225,6 +227,7 @@ class _DebugMenuScreenState extends State<DebugMenuScreen> {
             const SliverToBoxAdapter(child: DebugLottiePolygonSection()),
             SliverToBoxAdapter(child: DebugNetworkSection(appState: appState)),
             const SliverToBoxAdapter(child: DebugFeatureTogglesSection()),
+            const SliverToBoxAdapter(child: DebugSpoofSection()),
             SliverToBoxAdapter(
               child: DebugCacheSection(
                 cacheSize: _cacheSize,
