@@ -750,6 +750,15 @@ class AccountModule {
         (serverConfig.keys.map((key) => key.toString()).toList()..sort())
             .join(', '),
       );
+      // Сервер присылает botId мини-приложения прямо в server-конфиге.
+      final digitalIdBotId = serverConfig['digitalid-botid'];
+      if (digitalIdBotId is int) {
+        await AppDatabase.setSyncValue(
+          accountId,
+          'entry_banner_app_digital_id',
+          digitalIdBotId.toString(),
+        );
+      }
     }
     if (serverConfig != null) {
       await AppDatabase.setSyncValue(accountId, SyncKey.serverConfigSeen, '1');
