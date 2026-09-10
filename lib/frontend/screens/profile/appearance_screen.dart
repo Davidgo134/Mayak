@@ -132,7 +132,7 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
   }
 }
 
- extends StatelessWidget {
+class _ChatChromeCard extends StatelessWidget {
   const _ChatChromeCard();
 
   @override
