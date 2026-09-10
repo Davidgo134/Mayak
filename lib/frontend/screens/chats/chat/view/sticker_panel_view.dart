@@ -41,12 +41,17 @@ class StickerPanelView extends StatelessWidget {
         final t = Curves.easeOutCubic.transform(
           stickers.anim.value.clamp(0.0, 1.0),
         );
-        if (t == 0) return const SizedBox.shrink();
+        // Структура дерева неизменна => состояние панели (скролл, секции,
+        // кэш картинок) переживает закрытие. При t==0 панель скрыта через
+        // Offstage и TickerMode(false): не рисуется и не тикает.
         return ClipRect(
           child: Align(
             alignment: Alignment.topCenter,
             heightFactor: t,
-            child: child,
+            child: TickerMode(
+              enabled: t > 0,
+              child: Offstage(offstage: t == 0, child: child!),
+            ),
           ),
         );
       },

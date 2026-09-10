@@ -316,15 +316,26 @@ class _EmojiSectionView extends StatelessWidget {
   }
 
   Widget _cell(Animoji animoji) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => onTap(animoji),
-      child: Padding(
-        padding: const EdgeInsets.all(5),
-        child: LottieImage(
-          url: animoji.iconUrl,
-          lottieUrl: animoji.lottieUrl,
-          memCacheWidth: 120,
+    return RepaintBoundary(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => onTap(animoji),
+        child: Padding(
+          padding: const EdgeInsets.all(5),
+          // Статичное превью: десятки анимированных плееров убивают FPS.
+          // Нет статики — первый кадр lottie (animate: false).
+          child: Builder(
+            builder: (_) {
+              final icon = animoji.iconUrl;
+              final hasIcon = icon != null && icon.isNotEmpty;
+              return LottieImage(
+                url: hasIcon ? icon : null,
+                lottieUrl: hasIcon ? null : animoji.lottieUrl,
+                animate: false,
+                memCacheWidth: 120,
+              );
+            },
+          ),
         ),
       ),
     );

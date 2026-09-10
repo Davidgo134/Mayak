@@ -171,8 +171,11 @@ class _StickerPanelState extends State<StickerPanel>
       if (!mounted) return;
       _buildSections();
       setState(() => _loading = false);
+      // Контроллер больше не нужен: не тикаем вхолостую до конца сессии.
+      _shimmer.stop();
     } catch (e) {
       if (!mounted) return;
+      _shimmer.stop();
       setState(() {
         _loading = false;
         _error = e;
@@ -564,15 +567,17 @@ class _StickerPanelState extends State<StickerPanel>
       url: item.url,
       lottieUrl: item.lottieUrl,
       tags: item.tags,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => widget.onStickerTap(item),
-        child: Padding(
-          padding: const EdgeInsets.all(6),
-          child: LottieImage(
-            url: item.url,
-            lottieUrl: item.lottieUrl,
-            memCacheWidth: 220,
+      child: RepaintBoundary(
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => widget.onStickerTap(item),
+          child: Padding(
+            padding: const EdgeInsets.all(6),
+            // Статичное превью в панели: анимация только в peek-оверлее.
+            child: LottieImage(
+              url: item.url,
+              memCacheWidth: 220,
+            ),
           ),
         ),
       ),
@@ -680,15 +685,17 @@ class _StickerSectionState extends State<_StickerSection> {
       url: item.url,
       lottieUrl: item.lottieUrl,
       tags: item.tags,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => widget.onTap(item),
-        child: Padding(
-          padding: const EdgeInsets.all(6),
-          child: LottieImage(
-            url: item.url,
-            lottieUrl: item.lottieUrl,
-            memCacheWidth: 220,
+      child: RepaintBoundary(
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => widget.onTap(item),
+          child: Padding(
+            padding: const EdgeInsets.all(6),
+            // Статичное превью в панели: анимация только в peek-оверлее.
+            child: LottieImage(
+              url: item.url,
+              memCacheWidth: 220,
+            ),
           ),
         ),
       ),
