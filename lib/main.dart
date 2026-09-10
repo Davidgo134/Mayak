@@ -410,6 +410,11 @@ class MayakAppState extends State<MayakApp>
 
     WidgetsBinding.instance.addObserver(this);
     _applySystemNavStyle();
+    // В main() до runApp вызов может не дойти до окна — повторяем после
+    // первого кадра, когда Activity точно создана.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    });
     AppThemeModeConfig.current.addListener(_onThemeModeChanged);
     AppAmoled.current.addListener(_onAmoledChanged);
     AppThemeSchedule.current.addListener(_onScheduleChanged);
@@ -659,8 +664,10 @@ class MayakAppState extends State<MayakApp>
     if (mounted) setState(() {});
   }
 
-  void _applySystemNavStyle([Duration delay = Duration.zero]) async {
-    if (delay > Duration.zero) await Future.delayed(delay);
+  /// Стиль системных баров: всё прозрачно (edge-to-edge), иконки — по
+  /// яркости темы. Применяется через AnnotatedRegion на каждый кадр,
+  /// поэтому система не может «навсегда» вернуть белый фон нав-бара.
+  SystemUiOverlayStyle _systemOverlayStyle() {
     final Brightness brightness = switch (_effectiveThemeMode) {
       ThemeMode.light => Brightness.light,
       ThemeMode.dark => Brightness.dark,
@@ -669,17 +676,22 @@ class MayakAppState extends State<MayakApp>
     };
     final isDark = brightness == Brightness.dark;
     final iconBrightness = isDark ? Brightness.light : Brightness.dark;
-    SystemChrome.setSystemUIOverlayStyle(
-      SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: iconBrightness,
-        statusBarBrightness: brightness,
-        systemNavigationBarColor: Colors.transparent,
-        systemNavigationBarDividerColor: Colors.transparent,
-        systemNavigationBarIconBrightness: iconBrightness,
-        systemNavigationBarContrastEnforced: false,
-      ),
+    return SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: iconBrightness,
+      statusBarBrightness: brightness,
+      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarDividerColor: Colors.transparent,
+      systemNavigationBarIconBrightness: iconBrightness,
+      systemNavigationBarContrastEnforced: false,
     );
+  }
+
+  void _applySystemNavStyle([Duration delay = Duration.zero]) async {
+    // AnnotatedRegion вокруг MaterialApp применяет стиль каждый кадр.
+    // Этот метод остаётся как мгновенная подстраховка (resumed и т.п.).
+    if (delay > Duration.zero) await Future.delayed(delay);
+    SystemChrome.setSystemUIOverlayStyle(_systemOverlayStyle());
   }
 
   void _onThemeModeChanged() {
@@ -1052,7 +1064,9 @@ class MayakAppState extends State<MayakApp>
 
             _rebuildThemesIfNeeded(lightScheme, darkScheme);
 
-            return MaterialApp(
+            return AnnotatedRegion<SystemUiOverlayStyle>(
+              value: _systemOverlayStyle(),
+              child: MaterialApp(
               title: 'Маяк',
               debugShowCheckedModeBanner: false,
               locale: _locale,
@@ -1105,6 +1119,7 @@ class MayakAppState extends State<MayakApp>
                 );
               },
               home: const _StartupScreen(),
+              ),
             );
           },
         );

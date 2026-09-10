@@ -525,10 +525,14 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
     return Theme(
       data: Theme.of(context).copyWith(colorScheme: cs),
       child: AnnotatedRegion<SystemUiOverlayStyle>(
+        // Прозрачный нав-бар и на звонке: непрозрачный cs.surface оставался
+        // после закрытия экрана и красил системные кнопки в белый.
         value: SystemUiOverlayStyle.light.copyWith(
           statusBarColor: Colors.transparent,
-          systemNavigationBarColor: cs.surface,
+          systemNavigationBarColor: Colors.transparent,
+          systemNavigationBarDividerColor: Colors.transparent,
           systemNavigationBarIconBrightness: Brightness.light,
+          systemNavigationBarContrastEnforced: false,
         ),
         child: Scaffold(
           backgroundColor: cs.surface,
