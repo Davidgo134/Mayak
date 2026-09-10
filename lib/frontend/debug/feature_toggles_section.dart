@@ -177,6 +177,8 @@ class DebugFeatureTogglesSection extends StatelessWidget {
                   accountId,
                   'entry_banner_debug_items',
                 ),
+                await AppDatabase.getSyncValue(accountId, 'entry_config_keys'),
+                await AppDatabase.getSyncValue(accountId, 'entry_server_keys'),
               ];
             }(),
             builder: (context, snapshot) {
@@ -184,6 +186,8 @@ class DebugFeatureTogglesSection extends StatelessWidget {
               final did = values == null ? null : values[0];
               final sferum = values == null ? null : values[1];
               final raw = values == null ? null : values[2];
+              final configKeys = values == null ? null : values[3];
+              final serverKeys = values == null ? null : values[4];
               return Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(
@@ -210,7 +214,9 @@ class DebugFeatureTogglesSection extends StatelessWidget {
                       'botId (digital): ${did ?? '— не найден: сервер не прислал или иконка не сматчилась'}\n'
                       'botId (sferum): ${sferum ?? '— не найден'}'
                       '\n\nПоследний login: appid | icon | title\n'
-                      '${raw ?? '— нет данных: после установки этой сборки выйдите и войдите в аккаунт'}',
+                      '${raw ?? '— нет данных: после установки этой сборки выйдите и войдите в аккаунт'}'
+                      '\n\nconfig keys: ${configKeys ?? '—'}'
+                      '\nserver keys: ${serverKeys ?? '—'}',
                       style: TextStyle(
                         color: cs.onSurfaceVariant,
                         fontSize: 12,

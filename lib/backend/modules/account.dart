@@ -734,6 +734,23 @@ class AccountModule {
   Future<void> _saveLoginInfo(Map<dynamic, dynamic> data, int accountId) async {
     final config = data['config'] as Map?;
     final serverConfig = config?['server'] as Map?;
+    // Диагностика точек входа мини-приложений: только имена полей конфига,
+    // без значений (токены/персональные данные не сохраняются).
+    if (config != null) {
+      await AppDatabase.setSyncValue(
+        accountId,
+        'entry_config_keys',
+        (config.keys.map((key) => key.toString()).toList()..sort()).join(', '),
+      );
+    }
+    if (serverConfig != null) {
+      await AppDatabase.setSyncValue(
+        accountId,
+        'entry_server_keys',
+        (serverConfig.keys.map((key) => key.toString()).toList()..sort())
+            .join(', '),
+      );
+    }
     if (serverConfig != null) {
       await AppDatabase.setSyncValue(accountId, SyncKey.serverConfigSeen, '1');
       await AppDatabase.setSyncValue(
