@@ -211,7 +211,7 @@ class ChatListScreen extends StatefulWidget {
 enum _DeleteKind { personalLike, ownerGroup, blocked }
 
 class _ChatListScreenState extends State<ChatListScreen>
-    with TickerProviderStateMixin, RouteAware, SpectrumSurface {
+    with TickerProviderStateMixin, RouteAware {
   String? _selectedFolderId;
 
   List<ChatFolder> _folders = [];
@@ -2363,8 +2363,6 @@ class _ChatListScreenState extends State<ChatListScreen>
 
             return Stack(
               children: [
-                    ),
-                  ),
                 ClipRect(
                   child: SizedBox(
                     width: pageW,

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
-import '../debug/spoof_section.dart';
+import '../../debug/spoof_section.dart';
 import '../../../backend/modules/chats.dart';
 import '../../../core/calls/call_controller.dart';
 import '../../../core/config/app_media_cache.dart';
