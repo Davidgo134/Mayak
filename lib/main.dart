@@ -617,7 +617,20 @@ class MayakAppState extends State<MayakApp>
   }
 
   @override
+  void didChangePlatformBrightness() {
+    _applySystemNavStyle();
+    _applySystemNavStyle(const Duration(seconds: 2));
+    super.didChangePlatformBrightness();
+  }
+
+  @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _applySystemNavStyle();
+      // Через 2 сек после возврата переустанавливаем — система любит
+      // сбросить стиль нав-бара, пока приложение "догружается".
+      _applySystemNavStyle(const Duration(seconds: 2));
+    }
     CallController.instance.appResumed = state == AppLifecycleState.resumed;
     if (state == AppLifecycleState.inactive && CallController.instance.isBusy) {
       unawaited(CallBridge.instance.ensureOngoing());
@@ -646,7 +659,8 @@ class MayakAppState extends State<MayakApp>
     if (mounted) setState(() {});
   }
 
-  void _applySystemNavStyle() {
+  void _applySystemNavStyle([Duration delay = Duration.zero]) async {
+    if (delay > Duration.zero) await Future.delayed(delay);
     final Brightness brightness = switch (_effectiveThemeMode) {
       ThemeMode.light => Brightness.light,
       ThemeMode.dark => Brightness.dark,
