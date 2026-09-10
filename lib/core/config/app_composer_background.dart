@@ -19,7 +19,7 @@ class AppComposerBackground {
 
   static final _setting = PersistedEnum<ComposerBackground>(
     prefKey: prefKey,
-    defaultValue: ComposerBackground.standard,
+    defaultValue: ComposerBackground.frostBlur,
     encode: (value) => value.name,
     decode: _parse,
   );
@@ -30,9 +30,15 @@ class AppComposerBackground {
 
   static Future<void> save(ComposerBackground value) => _setting.save(value);
 
-  static ComposerBackground _parse(String? val) => enumFromName(
-    ComposerBackground.values,
-    val,
-    ComposerBackground.standard,
-  );
+  static ComposerBackground _parse(String? val) {
+    final v = enumFromName(
+      ComposerBackground.values,
+      val,
+      ComposerBackground.frostBlur,
+    );
+    // Доступен только ползунок Блюр: standard/frostBlur.
+    return v == ComposerBackground.liquidGlass
+        ? ComposerBackground.frostBlur
+        : v;
+  }
 }

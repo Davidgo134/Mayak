@@ -17,9 +17,10 @@ class AppSpectrumBackground {
 
   static ValueNotifier<bool> get current => _setting.current;
 
-  static bool get isEnabled => _setting.current.value;
+  static bool get isEnabled => false;
 
-  static Future<bool> load() => _setting.load();
+  // Функция вырезана: спектр всегда выключен.
+  static Future<bool> load() async => false;
 
-  static Future<void> save(bool value) => _setting.save(value);
+  static Future<void> save(bool value) async {}
 }

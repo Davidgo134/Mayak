@@ -9,7 +9,7 @@ class AppBubbleBehavior {
 
   static final _setting = PersistedEnum<BubbleBehavior>(
     prefKey: prefKey,
-    defaultValue: BubbleBehavior.mutable,
+    defaultValue: BubbleBehavior.immutable,
     encode: (value) => value.name,
     decode: _parse,
   );
@@ -21,7 +21,7 @@ class AppBubbleBehavior {
   static Future<void> save(BubbleBehavior behavior) => _setting.save(behavior);
 
   static BubbleBehavior _parse(String? val) =>
-      enumFromName(BubbleBehavior.values, val, BubbleBehavior.mutable);
+      enumFromName(BubbleBehavior.values, val, BubbleBehavior.immutable);
 
   static String label(BubbleBehavior behavior) {
     switch (behavior) {
