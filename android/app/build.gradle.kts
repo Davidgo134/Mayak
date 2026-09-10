@@ -54,7 +54,7 @@ android {
     flavorDimensions += "distribution"
 
     productFlavors {
-        create("komet") {
+        create("mayak") {
             dimension = "distribution"
             isDefault = true
             applicationId = "ru.mayak.app"

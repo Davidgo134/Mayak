@@ -54,8 +54,8 @@ private struct VideoExportSpec {
   }
 }
 
-final class KometVideo {
-  static let shared = KometVideo()
+final class MayakVideo {
+  static let shared = MayakVideo()
 
   private let queue = DispatchQueue(label: "ru.mayak.app.video", qos: .userInitiated)
   private var session: AVAssetExportSession?
