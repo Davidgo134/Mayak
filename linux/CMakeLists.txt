@@ -10,7 +10,7 @@ set(RUNNER_PREFIX_IS_DEFAULT ${CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT})
 
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.
-set(BINARY_NAME "Komet")
+set(BINARY_NAME "Mayak")
 # The unique GTK application identifier for this application. See:
 # https://wiki.gnome.org/HowDoI/ChooseApplicationID
 set(APPLICATION_ID "ru.mayak.app")

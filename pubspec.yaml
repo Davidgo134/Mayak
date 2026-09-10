@@ -1,5 +1,5 @@
 name: mayak
-description: "A new Flutter project."
+description: "Маяк — альтернативный клиент мессенджера MAX."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -124,7 +124,7 @@ flutter_launcher_icons:
   remove_alpha_ios: true
   background_color_ios: "#000000"
   adaptive_icon_background: "#000000"
-  adaptive_icon_foreground: "assets/komet.png"
+  adaptive_icon_foreground: "assets/mayak.png"
   windows:
     generate: true
     image_path: "assets/mayak_icon.png"
@@ -148,7 +148,7 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   assets:
-    - assets/komet.png
+    - assets/mayak.png
     - assets/mayak_icon.png
     - assets/meteor_icon.png
     - assets/emoji_keywords.json

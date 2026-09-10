@@ -1,4 +1,4 @@
-<img src="assets/komet.png" width="100" alt="Mayak Logo">
+<img src="assets/mayak.png" width="100" alt="Mayak Logo">
 
 # Mayak
 Альтернативный клиент для мессенджера MAX.

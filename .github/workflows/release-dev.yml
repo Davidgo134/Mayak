@@ -23,7 +23,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        flavor: [komet, oneme]
+        flavor: [mayak, oneme]
     steps:
       - uses: actions/checkout@v3
         with:
@@ -70,31 +70,31 @@ jobs:
             echo "KEYSTORE_BASE64 secret not set — release will be debug-signed."
             exit 0
           fi
-          echo "$KEYSTORE_BASE64" | base64 -d > android/app/komet-release.jks
+          echo "$KEYSTORE_BASE64" | base64 -d > android/app/mayak-release.jks
           {
             echo "storePassword=$KEYSTORE_PASSWORD"
             echo "keyPassword=$KEY_PASSWORD"
             echo "keyAlias=$KEY_ALIAS"
-            echo "storeFile=komet-release.jks"
+            echo "storeFile=mayak-release.jks"
           } > android/key.properties
           echo "Release signing configured."
 
       - name: Build APKs and App Bundle (${{ matrix.flavor }})
         run: |
-          flutter build apk --release --flavor ${{ matrix.flavor }} --obfuscate --split-debug-info=build/symbols --dart-define=KOMET_UPDATE_BASE_URL=${{ vars.S3_PUBLIC_BASE_URL || 'https://dl.komet.pw' }}
-          flutter build apk --release --split-per-abi --flavor ${{ matrix.flavor }} --obfuscate --split-debug-info=build/symbols --dart-define=KOMET_UPDATE_BASE_URL=${{ vars.S3_PUBLIC_BASE_URL || 'https://dl.komet.pw' }}
-          flutter build appbundle --release --flavor ${{ matrix.flavor }} --obfuscate --split-debug-info=build/symbols --dart-define=KOMET_UPDATE_BASE_URL=${{ vars.S3_PUBLIC_BASE_URL || 'https://dl.komet.pw' }}
+          flutter build apk --release --flavor ${{ matrix.flavor }} --obfuscate --split-debug-info=build/symbols --dart-define=MAYAK_UPDATE_BASE_URL=${{ vars.S3_PUBLIC_BASE_URL || 'https://dl.komet.pw' }}
+          flutter build apk --release --split-per-abi --flavor ${{ matrix.flavor }} --obfuscate --split-debug-info=build/symbols --dart-define=MAYAK_UPDATE_BASE_URL=${{ vars.S3_PUBLIC_BASE_URL || 'https://dl.komet.pw' }}
+          flutter build appbundle --release --flavor ${{ matrix.flavor }} --obfuscate --split-debug-info=build/symbols --dart-define=MAYAK_UPDATE_BASE_URL=${{ vars.S3_PUBLIC_BASE_URL || 'https://dl.komet.pw' }}
 
       - name: Collect Android artifacts (${{ matrix.flavor }})
         run: |
           F=${{ matrix.flavor }}
           mkdir -p dist
-          cp build/app/outputs/flutter-apk/app-$F-release.apk            dist/Komet-android-$F-universal.apk
-          cp build/app/outputs/flutter-apk/app-arm64-v8a-$F-release.apk  dist/Komet-android-$F-arm64-v8a.apk
-          cp build/app/outputs/flutter-apk/app-armeabi-v7a-$F-release.apk dist/Komet-android-$F-armeabi-v7a.apk
-          cp build/app/outputs/flutter-apk/app-x86_64-$F-release.apk     dist/Komet-android-$F-x86_64.apk
-          cp build/app/outputs/bundle/${F}Release/app-$F-release.aab     dist/Komet-android-$F.aab
-          tar -czf dist/Komet-android-$F-symbols.tar.gz -C build/symbols .
+          cp build/app/outputs/flutter-apk/app-$F-release.apk            dist/Mayak-android-$F-universal.apk
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-$F-release.apk  dist/Mayak-android-$F-arm64-v8a.apk
+          cp build/app/outputs/flutter-apk/app-armeabi-v7a-$F-release.apk dist/Mayak-android-$F-armeabi-v7a.apk
+          cp build/app/outputs/flutter-apk/app-x86_64-$F-release.apk     dist/Mayak-android-$F-x86_64.apk
+          cp build/app/outputs/bundle/${F}Release/app-$F-release.aab     dist/Mayak-android-$F.aab
+          tar -czf dist/Mayak-android-$F-symbols.tar.gz -C build/symbols .
 
       - name: Upload Android artifacts (${{ matrix.flavor }})
         uses: actions/upload-artifact@v4
@@ -122,12 +122,12 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
       - name: Build Windows
-        run: flutter build windows --release --dart-define=KOMET_UPDATE_BASE_URL=${{ vars.S3_PUBLIC_BASE_URL || 'https://dl.komet.pw' }}
+        run: flutter build windows --release --dart-define=MAYAK_UPDATE_BASE_URL=${{ vars.S3_PUBLIC_BASE_URL || 'https://dl.komet.pw' }}
       - name: Package Windows
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath dist/Komet-windows-x64.zip
+          Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath dist/Mayak-windows-x64.zip
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
@@ -158,11 +158,11 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
       - name: Build Linux
-        run: flutter build linux --release --dart-define=KOMET_UPDATE_BASE_URL=${{ vars.S3_PUBLIC_BASE_URL || 'https://dl.komet.pw' }}
+        run: flutter build linux --release --dart-define=MAYAK_UPDATE_BASE_URL=${{ vars.S3_PUBLIC_BASE_URL || 'https://dl.komet.pw' }}
       - name: Package Linux
         run: |
           mkdir -p dist
-          tar -C build/linux/x64/release/bundle -czf dist/Komet-linux-x64.tar.gz .
+          tar -C build/linux/x64/release/bundle -czf dist/Mayak-linux-x64.tar.gz .
       - name: Upload Linux artifact
         uses: actions/upload-artifact@v4
         with:
@@ -191,12 +191,12 @@ jobs:
       - name: Fix opus/ogg libs for macOS
         run: ./scripts/fix_opus_macos.sh
       - name: Build macOS
-        run: flutter build macos --release --dart-define=KOMET_UPDATE_BASE_URL=${{ vars.S3_PUBLIC_BASE_URL || 'https://dl.komet.pw' }}
+        run: flutter build macos --release --dart-define=MAYAK_UPDATE_BASE_URL=${{ vars.S3_PUBLIC_BASE_URL || 'https://dl.komet.pw' }}
       - name: Package macOS
         run: |
           mkdir -p dist
           APP=$(find build/macos/Build/Products/Release -maxdepth 1 -name "*.app" | head -1)
-          ditto -c -k --keepParent "$APP" dist/Komet-macos.zip
+          ditto -c -k --keepParent "$APP" dist/Mayak-macos.zip
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
@@ -225,12 +225,12 @@ jobs:
       - name: Build iOS (no codesign)
         run: |
           flutter config --no-enable-swift-package-manager
-          flutter build ios --release --no-codesign --dart-define=KOMET_UPDATE_BASE_URL=${{ vars.S3_PUBLIC_BASE_URL || 'https://dl.komet.pw' }}
+          flutter build ios --release --no-codesign --dart-define=MAYAK_UPDATE_BASE_URL=${{ vars.S3_PUBLIC_BASE_URL || 'https://dl.komet.pw' }}
       - name: Package unsigned IPA
         run: |
           mkdir -p dist build/ios/Payload
           cp -R build/ios/iphoneos/Runner.app build/ios/Payload/
-          (cd build/ios && zip -qr ../../dist/Komet-ios-unsigned.ipa Payload)
+          (cd build/ios && zip -qr ../../dist/Mayak-ios-unsigned.ipa Payload)
           rm -rf build/ios/Payload
       - name: Install ldid
         run: brew install ldid
@@ -246,9 +246,9 @@ jobs:
           <dict>
             <key>platform-application</key><true/>
             <key>get-task-allow</key><true/>
-            <key>application-identifier</key><string>ru.komet.app</string>
+            <key>application-identifier</key><string>ru.mayak.app</string>
             <key>keychain-access-groups</key>
-            <array><string>ru.komet.app</string></array>
+            <array><string>ru.mayak.app</string></array>
             <key>com.apple.private.security.no-container</key><true/>
           </dict>
           </plist>
@@ -271,7 +271,7 @@ jobs:
         run: |
           mkdir -p dist build/ios/Payload
           cp -R build/ios/iphoneos/Runner.app build/ios/Payload/
-          (cd build/ios && zip -qr ../../dist/Komet-ios-pseudosigned.ipa Payload)
+          (cd build/ios && zip -qr ../../dist/Mayak-ios-pseudosigned.ipa Payload)
       - name: Upload iOS artifact
         uses: actions/upload-artifact@v4
         with:
@@ -306,7 +306,7 @@ jobs:
           echo "build=${PUBSPEC_BUILD:-${BUILD}}" >> "$GITHUB_OUTPUT"
           echo "release_id=${PUBSPEC_VERSION}-dev.${BUILD}" >> "$GITHUB_OUTPUT"
           echo "tag=v${BRANCH_VERSION}-dev.${BUILD}" >> "$GITHUB_OUTPUT"
-          echo "name=Komet ${BRANCH_VERSION}-dev (build ${BUILD})" >> "$GITHUB_OUTPUT"
+          echo "name=Mayak ${BRANCH_VERSION}-dev (build ${BUILD})" >> "$GITHUB_OUTPUT"
 
       - name: List artifacts
         run: ls -lhR dist

@@ -15,9 +15,9 @@ flutter run              # run on connected device (default: komet flavor)
 flutter run --flavor oneme -t lib/main.dart  # run oneme flavor (FCM)
 
 # Android builds (release builds use obfuscation; keep symbols to de-obfuscate crashes)
-flutter build apk --release --flavor komet --obfuscate --split-debug-info=build/symbols
-flutter build apk --release --split-per-abi --flavor komet --obfuscate --split-debug-info=build/symbols
-flutter build appbundle --release --flavor komet --obfuscate --split-debug-info=build/symbols
+flutter build apk --release --flavor mayak --obfuscate --split-debug-info=build/symbols
+flutter build apk --release --split-per-abi --flavor mayak --obfuscate --split-debug-info=build/symbols
+flutter build appbundle --release --flavor mayak --obfuscate --split-debug-info=build/symbols
 
 # Other platforms
 flutter build ios --release --no-codesign

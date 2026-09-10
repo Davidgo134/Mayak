@@ -1,7 +1,7 @@
 import Flutter
 import UIKit
 
-final class KometStreamHandler: NSObject, FlutterStreamHandler {
+final class MayakStreamHandler: NSObject, FlutterStreamHandler {
   private let onSink: (FlutterEventSink?) -> Void
 
   init(onSink: @escaping (FlutterEventSink?) -> Void) {
@@ -26,15 +26,15 @@ final class KometStreamHandler: NSObject, FlutterStreamHandler {
 @objc class AppDelegate: FlutterAppDelegate {
   private var channels: [FlutterMethodChannel] = []
   private var eventChannels: [FlutterEventChannel] = []
-  private var streamHandlers: [KometStreamHandler] = []
-  private var videoNote: KometVideoNote?
+  private var streamHandlers: [MayakStreamHandler] = []
+  private var videoNote: MayakVideoNote?
 
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
     GeneratedPluginRegistrant.register(with: self)
-    KometNotifications.shared.start()
+    MayakNotifications.shared.start()
 
     if let controller = window?.rootViewController as? FlutterViewController {
       let messenger = controller.binaryMessenger
@@ -57,7 +57,7 @@ final class KometStreamHandler: NSObject, FlutterStreamHandler {
 
   private func events(_ name: String, _ messenger: FlutterBinaryMessenger,
                       _ onSink: @escaping (FlutterEventSink?) -> Void) {
-    let handler = KometStreamHandler(onSink: onSink)
+    let handler = MayakStreamHandler(onSink: onSink)
     let channel = FlutterEventChannel(name: name, binaryMessenger: messenger)
     channel.setStreamHandler(handler)
     streamHandlers.append(handler)
@@ -101,22 +101,22 @@ final class KometStreamHandler: NSObject, FlutterStreamHandler {
 
   private func registerVideo(_ messenger: FlutterBinaryMessenger) {
     method("ru.mayak.app/video", messenger) { call, result in
-      KometVideo.shared.handle(call, result: result)
+      MayakVideo.shared.handle(call, result: result)
     }
   }
 
   private func registerVideoNote(_ messenger: FlutterBinaryMessenger) {
-    guard let textures = registrar(forPlugin: "KometVideoNote")?.textures() else { return }
+    guard let textures = registrar(forPlugin: "MayakVideoNote")?.textures() else { return }
 
     method("ru.mayak.app/video_note", messenger) { [weak self] call, result in
       guard let self = self else { return }
       switch call.method {
       case "permission":
-        KometVideoNote.requestPermission(result)
+        MayakVideoNote.requestPermission(result)
       case "init":
         let args = call.arguments as? [String: Any] ?? [:]
         self.videoNote?.dispose()
-        let recorder = KometVideoNote(registry: textures)
+        let recorder = MayakVideoNote(registry: textures)
         self.videoNote = recorder
         recorder.initialize(
           front: (args["front"] as? NSNumber)?.boolValue ?? true,
@@ -143,7 +143,7 @@ final class KometStreamHandler: NSObject, FlutterStreamHandler {
   }
 
   private func withRecorder(_ result: @escaping FlutterResult,
-                            _ body: (KometVideoNote) -> Void) {
+                            _ body: (MayakVideoNote) -> Void) {
     guard let recorder = videoNote else {
       result(FlutterError(code: "NOT_READY", message: "recorder not initialized", details: nil))
       return
@@ -168,10 +168,10 @@ final class KometStreamHandler: NSObject, FlutterStreamHandler {
 
   private func registerNotifications(_ messenger: FlutterBinaryMessenger) {
     method("ru.mayak.app/notifications", messenger) { call, result in
-      KometNotifications.shared.handle(call, result: result)
+      MayakNotifications.shared.handle(call, result: result)
     }
     events("ru.mayak.app/notification_events", messenger) { sink in
-      KometNotifications.shared.attach(sink)
+      MayakNotifications.shared.attach(sink)
     }
   }
 }

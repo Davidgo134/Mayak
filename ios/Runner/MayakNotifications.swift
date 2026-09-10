@@ -2,8 +2,8 @@ import Flutter
 import UIKit
 import UserNotifications
 
-final class KometNotifications: NSObject {
-  static let shared = KometNotifications()
+final class MayakNotifications: NSObject {
+  static let shared = MayakNotifications()
 
   private static let chatKeys = ["komet_chat", "chatId", "chat_id"]
 
@@ -76,7 +76,7 @@ final class KometNotifications: NSObject {
   }
 }
 
-extension KometNotifications: UNUserNotificationCenterDelegate {
+extension MayakNotifications: UNUserNotificationCenterDelegate {
   func userNotificationCenter(
     _ center: UNUserNotificationCenter,
     willPresent notification: UNNotification,
