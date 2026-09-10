@@ -22,10 +22,10 @@ class AppVisualStyle {
 
   static Future<VisualStyle> load() => _setting.load();
 
-  static Future<void> save(VisualStyle value) => _setting.save(value);
+  // Выбор визуала убран: всегда Glossy.
+  static Future<void> save(VisualStyle value) async {}
 
   static String _encode(VisualStyle value) => value.name;
 
-  static VisualStyle _parse(String? val) =>
-      enumFromName(VisualStyle.values, val, VisualStyle.materialYou);
+  static VisualStyle _parse(String? val) => VisualStyle.glossy;
 }

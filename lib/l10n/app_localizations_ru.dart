@@ -919,6 +919,9 @@ class AppLocalizationsRu extends AppLocalizations {
   String get appearanceComposerBackgroundFrost => 'Frost blur';
 
   @override
+  String get appearanceComposerBlur => 'Блюр';
+
+  @override
   String get appearanceNavPillTitle => 'Вид переключателей';
 
   @override

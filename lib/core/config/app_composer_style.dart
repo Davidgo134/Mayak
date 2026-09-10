@@ -27,8 +27,8 @@ class AppComposerStyle {
 
   static Future<ComposerStyle> load() => _setting.load();
 
-  static Future<void> save(ComposerStyle value) => _setting.save(value);
+  // Выбор стиля панели убран: всегда Glossy.
+  static Future<void> save(ComposerStyle value) async {}
 
-  static ComposerStyle _parse(String? val) =>
-      enumFromName(ComposerStyle.values, val, ComposerStyle.glossy);
+  static ComposerStyle _parse(String? val) => ComposerStyle.glossy;
 }

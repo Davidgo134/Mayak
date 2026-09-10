@@ -40,6 +40,17 @@ class AppNavPillStyle {
 
   static Future<void> save(NavPillStyle value) => _setting.save(value);
 
-  static NavPillStyle _parse(String? val) =>
-      enumFromName(NavPillStyle.values, val, NavPillStyle.glossy);
+  static NavPillStyle _parse(String? val) {
+    final v = enumFromName(NavPillStyle.values, val, NavPillStyle.glossy);
+    // Доступны только Glossy и G-FrostBlur.
+    switch (v) {
+      case NavPillStyle.frostBlur:
+        return NavPillStyle.frostBlur;
+      case NavPillStyle.liquidGlass:
+        return NavPillStyle.frostBlur;
+      case NavPillStyle.auto:
+      case NavPillStyle.glossy:
+        return NavPillStyle.glossy;
+    }
+  }
 }
