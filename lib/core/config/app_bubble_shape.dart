@@ -18,10 +18,10 @@ class AppBubbleShape {
 
   static Future<BubbleStyle> load() => _setting.load();
 
-  static Future<void> save(BubbleStyle style) => _setting.save(style);
+  // Выбор формы убран: всегда TG Mobile.
+  static Future<void> save(BubbleStyle style) async {}
 
-  static BubbleStyle _parse(String? val) =>
-      enumFromName(BubbleStyle.values, val, BubbleStyle.mobile);
+  static BubbleStyle _parse(String? val) => BubbleStyle.mobile;
 
   static String label(BubbleStyle style) {
     switch (style) {

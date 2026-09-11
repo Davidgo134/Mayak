@@ -917,6 +917,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearanceComposerBackgroundFrost => 'Frost blur';
 
   @override
+  String get appearanceComposerBlur => 'Blur';
+
+  @override
   String get appearanceNavPillTitle => 'Switcher style';
 
   @override

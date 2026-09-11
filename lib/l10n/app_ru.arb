@@ -300,6 +300,7 @@
   "appearanceComposerSubtitle": "Стиль и фон панели ввода сообщений",
   "appearanceComposerBackgroundStandard": "Default",
   "appearanceComposerBackgroundFrost": "Frost blur",
+  "appearanceComposerBlur": "Размытие фона панели ввода",
   "appearanceNavPillTitle": "Вид переключателей",
   "appearanceNavPillSubtitle": "Переключатель разделов на экране чатов",
   "appearanceNavPillGlossy": "Glossy",
