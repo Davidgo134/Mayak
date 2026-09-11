@@ -128,7 +128,10 @@ class GlossyPill extends StatelessWidget {
       builder: (context, style, _) {
         if (style == VisualStyle.materialYou) return _flat(context);
         if (liquid && LiquidGlass.isSupported) return _liquid(context);
-        return _glossy(context, false);
+        return ValueListenableBuilder<bool>(
+          valueListenable: AppPillGradient.current,
+          builder: (context, gradient, _) => _glossy(context, gradient),
+        );
       },
     );
   }

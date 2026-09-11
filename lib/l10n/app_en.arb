@@ -342,7 +342,6 @@
   "appearanceComposerSubtitle": "Style and background of the message input bar",
   "appearanceComposerBackgroundStandard": "Default",
   "appearanceComposerBackgroundFrost": "Frost blur",
-  "appearanceComposerBlur": "Blur input bar background",
   "appearanceNavPillTitle": "Switcher style",
   "appearanceNavPillSubtitle": "Section switcher on the chats screen",
   "appearanceNavPillGlossy": "Glossy",

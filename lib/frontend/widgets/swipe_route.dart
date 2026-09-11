@@ -99,50 +99,6 @@ class SwipeRoute<T> extends PageRoute<T> {
   }
 }
 
-/// Иерархия глубины: страница-подложка (список чатов) реагирует на
-/// secondaryAnimation — сдвигается влево, слегка уменьшается и затемняется,
-/// пока сверху открыт чат. Закрытие возвращает её на место.
-class DepthShift extends StatelessWidget {
-  const DepthShift({super.key, required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final route = ModalRoute.of(context);
-    final secondary = route?.secondaryAnimation;
-    if (secondary == null) return child;
-    return AnimatedBuilder(
-      animation: secondary,
-      builder: (context, child) {
-        final t = Curves.easeOutCubic.transform(
-          secondary.value.clamp(0.0, 1.0),
-        );
-        return Stack(
-          children: [
-            Transform.translate(
-              offset: Offset(-0.06 * MediaQuery.sizeOf(context).width * t, 0),
-              child: Transform.scale(
-                scale: 1.0 - 0.04 * t,
-                child: child,
-              ),
-            ),
-            IgnorePointer(
-              ignoring: true,
-              child: Positioned.fill(
-                child: ColoredBox(
-                  color: CupertinoColors.black.withValues(alpha: 0.14 * t),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-      child: child,
-    );
-  }
-}
-
 Future<T?> pushSwipeable<T>(
   BuildContext context,
   WidgetBuilder builder, {

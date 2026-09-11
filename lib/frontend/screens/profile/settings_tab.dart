@@ -47,6 +47,7 @@ import 'mayak_settings_screen.dart';
 import 'notifications_screen.dart';
 import 'profile_qr_sheet.dart';
 import 'security_screen.dart';
+import 'spoof_screen.dart';
 import '../../widgets/media_playback_pill.dart';
 import '../../../core/config/app_fonts.dart';
 import '../../../core/config/app_shape.dart';
@@ -506,6 +507,20 @@ class _SettingsTabState extends State<SettingsTab> with SpectrumSurface {
                             );
                           },
                         ),
+                        if (BuildProfile.spoofUi)
+                          _SettingsItem(
+                            icon: Symbols.shield_lock,
+                            label: AppLocalizations.of(context)!
+                                .profileMenuSpoof,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const SpoofScreen(),
+                                ),
+                              );
+                            },
+                          ),
                         _SettingsItem(
                           icon: Symbols.lock,
                           label: 'Безопасность',
