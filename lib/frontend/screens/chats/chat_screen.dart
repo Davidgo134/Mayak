@@ -4222,7 +4222,118 @@ class _ChatScreenState extends State<ChatScreen>
     if (!message.id.startsWith('temp_')) return false;
     final status = message.status;
     if (status != 'error' && status != 'pending') return false;
-    return message.text?.isNotEmpty ?? false;
+    if (message.text?.isNotEmpty ?? false) return true;
+    return _retryAttachmentOf(message) != null;
+  }
+
+  /// Первое вложение, которое можно переотправить (есть локальный файл).
+  MessageAttachment? _retryAttachmentOf(CachedMessage msg) {
+    for (final att in msg.attachments ?? const <MessageAttachment>[]) {
+      if (_attachmentLocalPath(att) != null) return att;
+    }
+    return null;
+  }
+
+  String? _attachmentLocalPath(MessageAttachment att) {
+    return switch (att) {
+      PhotoAttachment a => a.localPath,
+      VideoAttachment a => a.localPath,
+      AudioAttachment a => a.localPath,
+      FileAttachment a => a.localPath,
+      _ => null,
+    };
+  }
+
+  /// Повторная отправка сообщения-вложения (фото/видео/кружок/голос/файл).
+  void _retryAttachmentMessage(CachedMessage msg, int index) {
+    final att = _retryAttachmentOf(msg);
+    if (att == null) return;
+    final path = _attachmentLocalPath(att);
+    if (path == null || !File(path).existsSync()) {
+      showCustomNotification(
+        context,
+        'Исходный файл недоступен — прикрепите заново',
+      );
+      return;
+    }
+    if (api.state != SessionState.online) {
+      showCustomNotification(context, 'Нет соединения — попробуйте позже');
+      return;
+    }
+    Haptics.send();
+    final updated = msg.copyWith(status: 'sending');
+    _messages[index] = updated;
+    _bumpMessages();
+    if (att is PhotoAttachment) {
+      final jobs = <({File file, GalleryItem? item})>[
+        for (final a in (msg.attachments ?? const <MessageAttachment>[]).whereType<PhotoAttachment>())
+          if (a.localPath != null && File(a.localPath!).existsSync())
+            (file: File(a.localPath!), item: null),
+      ];
+      unawaited(
+        UploadService.instance.sendPhotos(
+          accountId: _myId,
+          chatId: widget.chatId,
+          tempId: msg.id,
+          jobs: jobs,
+          caption: msg.text ?? '',
+          placeholder: updated,
+        ),
+      );
+    } else if (att is VideoAttachment) {
+      if (att.videoType == 1) {
+        unawaited(
+          UploadService.instance.sendVideoNote(
+            accountId: _myId,
+            chatId: widget.chatId,
+            tempId: msg.id,
+            file: File(path),
+            durationMs: att.duration ?? 0,
+            placeholder: updated,
+          ),
+        );
+      } else {
+        unawaited(
+          UploadService.instance.sendVideo(
+            accountId: _myId,
+            chatId: widget.chatId,
+            tempId: msg.id,
+            file: File(path),
+            caption: msg.text ?? '',
+            placeholder: updated,
+          ),
+        );
+      }
+    } else if (att is AudioAttachment) {
+      final wave = att.waveform == null
+          ? Uint8List(0)
+          : Uint8List.fromList(att.waveform!.codeUnits);
+      unawaited(
+        UploadService.instance.sendVoice(
+          accountId: _myId,
+          chatId: widget.chatId,
+          tempId: msg.id,
+          file: File(path),
+          durationMs: att.duration ?? 0,
+          wave: wave,
+          placeholder: updated,
+        ),
+      );
+    } else if (att is FileAttachment) {
+      final file = File(path);
+      unawaited(
+        UploadService.instance.sendFile(
+          accountId: _myId,
+          chatId: widget.chatId,
+          tempId: msg.id,
+          source: file,
+          filename: att.name ?? 'file',
+          size: att.size ?? file.lengthSync(),
+          placeholder: updated,
+        ),
+      );
+      _syncUploadStatus();
+    }
   }
 
   /// Повторная отправка неуспешного текстового сообщения.
@@ -4234,6 +4345,11 @@ class _ChatScreenState extends State<ChatScreen>
     }
     final index = _messages.indexWhere((m) => m.id == msg.id);
     if (index == -1) return;
+    // Если есть переотправляемое вложение — весь путь идёт через UploadService.
+    if (_retryAttachmentOf(msg) != null) {
+      _retryAttachmentMessage(msg, index);
+      return;
+    }
     final wireText = msg.text;
     if (wireText == null || wireText.isEmpty) return;
 
@@ -6366,6 +6482,7 @@ class _ChatScreenState extends State<ChatScreen>
       AudioAttachment(
         duration: durationMs,
         waveform: String.fromCharCodes(wave),
+        localPath: file.path,
       ),
     );
 
@@ -7166,7 +7283,7 @@ class _ChatScreenState extends State<ChatScreen>
     final placeholder = scheduledTime != null
         ? null
         : _addOptimisticMediaMessage(
-            FileAttachment(name: filename, size: size),
+            FileAttachment(name: filename, size: size, localPath: source.path),
           );
 
     final sending = UploadService.instance.sendFile(
