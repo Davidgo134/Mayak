@@ -190,15 +190,30 @@ void _installLogCapture() {
   };
 }
 
+String _bootStep = 'start';
+bool _bootFinished = false;
+bool _bootFailed = false;
+void _mark(String s) => _bootStep = s;
+
 void main(List<String> args) {
-  // Диагностика серого экрана: сбой при старте показываем на экране,
-  // а не молча (в release ErrorWidget/край main() = серый фон).
-  _bootstrap(args).catchError((Object error, StackTrace stack) {
+  // Диагностика: сбой при старте показываем на экране.
+  // Watchdog: если bootstrap завис без исключения (сплэш навсегда),
+  // через 8с показываем последний завершённый шаг инициализации.
+  Timer(const Duration(seconds: 8), () {
+    if (!_bootFinished) {
+      _showStartupFailure('BOOT HANG: висит на шаге «$_bootStep»', StackTrace.current);
+    }
+  });
+  _bootstrap(args).then((_) {
+    _bootFinished = true;
+  }).catchError((Object error, StackTrace stack) {
+    _bootFinished = true;
     _showStartupFailure(error, stack);
   });
 }
 
 void _showStartupFailure(Object error, StackTrace stack) {
+  _bootFailed = true;
   try {
     WidgetsFlutterBinding.ensureInitialized();
     DebugSessionLog.instance.recordLogLine('  | BOOT FAILURE: $error');
@@ -299,6 +314,7 @@ class _FatalErrorBox extends StatelessWidget {
 Future<void> _bootstrap(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  _mark('kolibri');
   await initKolibri();
   DebugTest.parse(args);
   CallNoMute.parse(args);
@@ -311,10 +327,13 @@ Future<void> _bootstrap(List<String> args) async {
   if (AppInstance.isNamed) {
     SharedPreferences.setPrefix('flutter.${AppInstance.id}.');
   }
+  _mark('tls');
   await TlsConfig.applyMincifryTrust();
+  _mark('db');
   await AppDatabase.init();
   final activeAccountId = await TokenStorage.getActiveAccountId();
   if (activeAccountId != null) {
+    _mark('contactsPrime');
     await ContactsModule.primeCacheFromDb(activeAccountId);
   }
   attachInfoCacheApi(api);
@@ -364,17 +383,23 @@ Future<void> _bootstrap(List<String> args) async {
   final trafficCaptureFuture = TrafficMonitor.instance.load();
   final debugLogFuture = DebugSessionLog.instance.init();
 
+  _mark('packageInfo');
   await packageInfoFuture;
 
   final initialLocale = await localeFuture;
 
+  _mark('haptics');
   await hapticsFuture;
 
   final prefs = await prefsFuture;
+  _mark('fileHistory');
   await FileHistoryCache.load(prefs);
+  _mark('drafts');
   await DraftStore.instance.load();
   await ArchivedChatsStore.instance.load();
+  _mark('chatCrypto');
   await ChatEncryptionStore.instance.load();
+  _mark('mayakSettings');
   await MayakSettings.load();
   if (MayakSettings.ghostMode.value) SelfPresence.markOffline();
   await ContactCache.load();
@@ -391,11 +416,13 @@ Future<void> _bootstrap(List<String> args) async {
     prefs.getDouble(AppFonts.scalePrefKey) ?? AppFonts.defaultScale,
   );
   if (AppFonts.resolve(initialFontId).isCustom) {
+    _mark('fonts-beforePreload');
     await CustomFontService.preloadCached();
   } else {
     unawaited(CustomFontService.preloadCached());
   }
   final initialAccentSeed = await accentFuture;
+  _mark('configBatch');
   await Future.wait<dynamic>([
     bubbleShapeFuture,
     bubbleBehaviorFuture,
@@ -427,9 +454,13 @@ Future<void> _bootstrap(List<String> args) async {
     showExtraInfoFuture,
     spectrumBackgroundFuture,
   ]);
+  _mark('deviceContacts');
   await DeviceContactsService.loadFromStartup();
+  _mark('trafficCapture');
   await trafficCaptureFuture;
+  _mark('debugLog');
   await debugLogFuture;
+  if (!_bootFailed)
   runApp(
     MayakApp(
       initialLocale: initialLocale,
@@ -545,6 +576,7 @@ class MayakAppState extends State<MayakApp>
         if (accountId != null) {
           final token = await TokenStorage.readToken(accountId);
           if (token != null) {
+            _mark('login');
             await accountModule.login(accountId: accountId, token: token);
           }
         }
@@ -564,7 +596,9 @@ class MayakAppState extends State<MayakApp>
         SelfCheckService.instance.init(api);
         SelfCheckService.instance.checkNow();
         if (BuildProfile.firebasePush) {
+          _mark('pushInit');
           await PushService.instance.init(api: api, account: accountModule);
+          _mark('pushLogin');
           await PushService.instance.onLoginSuccess();
           await _ensureFullScreenIntentPermission();
         }
