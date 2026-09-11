@@ -179,9 +179,124 @@ void _installLogCapture() {
     }
     return false;
   };
+
+  // Вместо серого квадрата — читаемый текст ошибки (важно в release).
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    final message = details.exceptionAsString();
+    DebugSessionLog.instance.recordLogLine(
+      '  |         ErrorWidget: $message',
+    );
+    return _FatalErrorBox(message: message, stack: details.stack);
+  };
 }
 
-void main(List<String> args) async {
+void main(List<String> args) {
+  // Диагностика серого экрана: сбой при старте показываем на экране,
+  // а не молча (в release ErrorWidget/край main() = серый фон).
+  _bootstrap(args).catchError((Object error, StackTrace stack) {
+    _showStartupFailure(error, stack);
+  });
+}
+
+void _showStartupFailure(Object error, StackTrace stack) {
+  try {
+    WidgetsFlutterBinding.ensureInitialized();
+    DebugSessionLog.instance.recordLogLine('  | BOOT FAILURE: $error');
+    DebugSessionLog.instance.recordLogLine(stack.toString());
+  } catch (_) {}
+  runApp(_StartupErrorScreen(error: error, stack: stack));
+}
+
+class _StartupErrorScreen extends StatelessWidget {
+  const _StartupErrorScreen({required this.error, required this.stack});
+
+  final Object error;
+  final StackTrace stack;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = 'BOOT FAILURE\n\n$error\n\n$stack';
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData.dark(),
+      home: Scaffold(
+        backgroundColor: const Color(0xFF1A1A1E),
+        body: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    const Icon(Icons.error_outline, color: Color(0xFFFF5252)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Mayak: сбой запуска',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: text));
+                      },
+                      child: const Text('Скопировать'),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(12),
+                  child: Text(
+                    text,
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                      color: Color(0xFFE0E0E0),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FatalErrorBox extends StatelessWidget {
+  const _FatalErrorBox({required this.message, this.stack});
+
+  final String message;
+  final StackTrace? stack;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = '$message\n\n${stack ?? ''}';
+    return Directionality(
+      textDirection: TextDirection.ltr,
+      child: Material(
+        color: const Color(0xFF1A1A1E),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Text(
+            text,
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 12,
+              color: Color(0xFFFF8A80),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+Future<void> _bootstrap(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   await initKolibri();
