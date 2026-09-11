@@ -655,6 +655,16 @@ class MessageBubble extends StatelessWidget {
   final String? commentsLabel;
   final VoidCallback? onCommentsTap;
 
+  /// Повторная отправка неуспешного сообщения (статус error/pending).
+  final VoidCallback? onRetrySend;
+
+  bool get _retryVisible =>
+      isMe &&
+      onRetrySend != null &&
+      message.id.startsWith('temp_') &&
+      _stuckStatuses.contains(overrideStatus ?? message.status);
+
+  static const Set<String> _stuckStatuses = {'error', 'pending'};
   const MessageBubble({
     super.key,
     required this.message,
@@ -685,6 +695,7 @@ class MessageBubble extends StatelessWidget {
     this.onExitTextSelection,
     this.commentsLabel,
     this.onCommentsTap,
+    this.onRetrySend,
   });
 
   bool _computeHasPhotoWithCaption() {
@@ -1637,7 +1648,9 @@ class MessageBubble extends StatelessWidget {
           ),
           if (ctx.isMe) ...[
             const SizedBox(width: 3),
-            if (isSendingStatus(status))
+            if (_retryVisible)
+              _RetrySendButton(onTap: onRetrySend!)
+            else if (isSendingStatus(status))
               SendingClockIcon(color: statusVisual.color, size: 13)
             else
               Icon(statusVisual.icon, size: 13, color: statusVisual.color),
@@ -1846,7 +1859,13 @@ class MessageBubble extends StatelessWidget {
           message.status == 'EDITED' ? '${ctx.clockText} ред.' : ctx.clockText,
           style: TextStyle(color: ctx.dim, fontSize: 10),
         ),
-        if (isMe) ...[const SizedBox(width: 4), ctx.statusIcon()],
+        if (isMe) ...[
+          const SizedBox(width: 4),
+          if (_retryVisible)
+            _RetrySendButton(onTap: onRetrySend!)
+          else
+            ctx.statusIcon(),
+        ],
         if (message.deleted) ...[const SizedBox(width: 4), ctx.deletedIcon()],
       ],
     );
@@ -2270,6 +2289,29 @@ class MessageBubble extends StatelessWidget {
       audioId: audio?.audioId,
       preloadedText: cachedTranscription?.text,
       uploadProgress: ctx.uploadProgress,
+    );
+  }
+}
+
+
+/// Кнопка повторной отправки неудавшегося сообщения.
+class _RetrySendButton extends StatelessWidget {
+  const _RetrySendButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: const SizedBox(
+        width: 24,
+        height: 18,
+        child: Center(
+          child: Icon(Symbols.refresh, size: 14, color: Colors.redAccent),
+        ),
+      ),
     );
   }
 }
