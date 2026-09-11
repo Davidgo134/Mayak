@@ -190,6 +190,7 @@ class AudioAttachment extends MessageAttachment {
   final int? duration;
   final int? size;
   final String? waveform;
+  final String? localPath;
 
   const AudioAttachment({
     super.previewData,
@@ -200,6 +201,7 @@ class AudioAttachment extends MessageAttachment {
     this.duration,
     this.size,
     this.waveform,
+    this.localPath,
   }) : super(type: AttachmentType.audio);
 
   factory AudioAttachment.fromMap(Map<String, dynamic> map) {
@@ -223,6 +225,7 @@ class AudioAttachment extends MessageAttachment {
       duration: map['duration'] as int?,
       size: map['size'] as int?,
       waveform: waveStr,
+      localPath: map['localPath'] as String?,
     );
   }
 
@@ -236,6 +239,7 @@ class AudioAttachment extends MessageAttachment {
     'duration': duration,
     'size': size,
     'waveform': waveform,
+    'localPath': localPath,
   };
 }
 
@@ -245,6 +249,7 @@ class FileAttachment extends MessageAttachment {
   final String? name;
   final int? size;
   final PhotoAttachment? preview;
+  final String? localPath;
 
   const FileAttachment({
     super.previewData,
@@ -255,6 +260,7 @@ class FileAttachment extends MessageAttachment {
     this.name,
     this.size,
     this.preview,
+    this.localPath,
   }) : super(type: AttachmentType.file);
 
   factory FileAttachment.fromMap(Map<String, dynamic> map) {
@@ -272,6 +278,7 @@ class FileAttachment extends MessageAttachment {
       name: map['name'] as String?,
       size: map['size'] as int?,
       preview: preview,
+      localPath: map['localPath'] as String?,
     );
   }
 
@@ -284,6 +291,7 @@ class FileAttachment extends MessageAttachment {
     'fileToken': fileToken,
     'name': name,
     'size': size,
+    'localPath': localPath,
     if (preview != null) 'preview': preview!.toMap(),
   };
 }
