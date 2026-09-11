@@ -7,6 +7,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:mayak/backend/modules/chat_preview.dart';
@@ -665,6 +666,10 @@ class _ChatScreenState extends State<ChatScreen>
   final ValueNotifier<int> _newMessageCount = ValueNotifier(0);
   bool _clearCountScheduled = false;
   final Set<String> _deferredIds = <String>{};
+
+  /// Сообщения, которые должны появиться с spring-анимацией
+  /// (входящие, optimistic-медиа, живые комментарии).
+  final Set<String> _springInIds = <String>{};
   int _listEpoch = 0;
   final List<({String id, double pixels, double alignment})> _returnStack = [];
   bool _returningToAnchor = false;
@@ -2122,6 +2127,7 @@ class _ChatScreenState extends State<ChatScreen>
     if (_messages.any((m) => m.id == comment.id)) return;
     final nearBottom = _isNearListBottom();
     if (!nearBottom) _deferredIds.add(comment.id);
+    _springInIds.add(comment.id);
     _messages.add(comment);
     _syncReactionNotifiersFromMessages();
     _bumpMessages();
@@ -4204,6 +4210,117 @@ class _ChatScreenState extends State<ChatScreen>
     }
   }
 
+  bool _canRetryMessage(CachedMessage message) {
+    if (message.senderId != _myId) return false;
+    if (!message.id.startsWith('temp_')) return false;
+    final status = message.status;
+    if (status != 'error' && status != 'pending') return false;
+    return message.text?.isNotEmpty ?? false;
+  }
+
+  /// Повторная отправка неуспешного текстового сообщения.
+  Future<void> _retryMessage(CachedMessage msg) async {
+    if (_myId == 0 || !mounted) return;
+    if (api.state != SessionState.online) {
+      showCustomNotification(context, 'Нет соединения — попробуйте позже');
+      return;
+    }
+    final index = _messages.indexWhere((m) => m.id == msg.id);
+    if (index == -1) return;
+    final wireText = msg.text;
+    if (wireText == null || wireText.isEmpty) return;
+
+    final payload = msg.payload;
+    final link = payload?['link'];
+    int? replyId;
+    int? replySourceChatId;
+    if (link is Map) {
+      final linkedMessage = link['message'];
+      if (linkedMessage is Map) replyId = (linkedMessage['id'] as num?)?.toInt();
+      final cid = link['chatId'];
+      if (cid is num) replySourceChatId = cid.toInt();
+      if (replySourceChatId == widget.chatId) replySourceChatId = null;
+    }
+    final elements =
+        ((payload?['elements'] as List?) ?? const [])
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+
+    final tempId = msg.id;
+    final now = msg.time;
+    Haptics.send();
+    _messages[index] = msg.copyWith(status: 'sending');
+    _bumpMessages();
+
+    try {
+      final actualId = _commentsMode
+          ? await commentsModule.sendComment(
+              _myId,
+              widget.chatId,
+              widget.commentPostId!,
+              wireText,
+              replyToMessageId: replyId,
+              elements: elements,
+            )
+          : await messagesModule.sendMessage(
+              _myId,
+              widget.chatId,
+              wireText,
+              replyToMessageId: replyId,
+              replySourceChatId: replySourceChatId,
+              elements: elements,
+            );
+
+      final idx = _messages.indexWhere((m) => m.id == tempId);
+      if (idx != -1 && mounted) {
+        final sent = CachedMessage(
+          id: actualId.isNotEmpty ? actualId : tempId,
+          accountId: _myId,
+          chatId: widget.chatId,
+          senderId: _myId,
+          text: wireText,
+          time: now,
+          status: 'sent',
+          payload: payload,
+        );
+        _messages[idx] = sent;
+        _bumpMessages();
+        MessageDecryptionCache.instance.adopt(tempId, sent.id);
+        if (!_commentsMode) {
+          unawaited(_persistOutgoing(sent, removeId: tempId));
+          unawaited(
+            chats.applyOutgoing(
+              _myId,
+              widget.chatId,
+              messageId: sent.id,
+              time: now,
+              text: wireText,
+              status: 'sent',
+              elements: elements,
+            ),
+          );
+        }
+        _syncOtherReadTime();
+      }
+    } catch (e) {
+      final failed = isPermanentSendFailure(e);
+      if (failed) logger.w('Повторная отправка отклонена: $e');
+      final idx = _messages.indexWhere((m) => m.id == tempId);
+      if (idx != -1 && mounted) {
+        _messages[idx] = msg.copyWith(status: failed ? 'error' : 'pending');
+        _bumpMessages();
+      }
+      if (mounted) {
+        Haptics.error();
+        showCustomNotification(
+          context,
+          failed ? 'Не удалось отправить сообщение' : 'Сообщение в очереди',
+        );
+      }
+    }
+  }
+
   int? _resolveOtherId() {
     if (widget.chatType != 'DIALOG' || _myId == 0) return null;
     if (widget.chatId == 0) return null;
@@ -5919,6 +6036,16 @@ class _ChatScreenState extends State<ChatScreen>
                                 onCommentsTap: isChannelPost
                                     ? () => _openComments(message)
                                     : null,
+                                onRetrySend: _canRetryMessage(message)
+                                    ? () {
+                                        final idx = _messages.indexWhere(
+                                          (m) => m.id == message.id,
+                                        );
+                                        if (idx != -1) {
+                                          _retryMessage(_messages[idx]);
+                                        }
+                                      }
+                                    : null,
                               );
 
                               final canReport = !isMe && !message.isControl;
@@ -6014,7 +6141,11 @@ class _ChatScreenState extends State<ChatScreen>
                                   child: swipeable,
                                 );
                               } else {
-                                child = swipeable;
+                                child = _SpringIn(
+                                  key: ValueKey('springin_${message.id}'),
+                                  play: _springInIds.remove(message.id),
+                                  child: swipeable,
+                                );
                               }
 
                               final highlightable =
@@ -7752,6 +7883,81 @@ class _DeletingMessageAnimationState extends State<_DeletingMessageAnimation>
   }
 }
 
+/// Появление пузыря с настоящей пружиной (лёгкий overshoot).
+class _SpringIn extends StatefulWidget {
+  const _SpringIn({super.key, required this.play, required this.child});
+
+  final bool play;
+  final Widget child;
+
+  @override
+  State<_SpringIn> createState() => _SpringInState();
+}
+
+class _SpringInState extends State<_SpringIn>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl = AnimationController(
+    vsync: this,
+    value: 1.0,
+  );
+  bool _played = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.play) _run();
+  }
+
+  @override
+  void didUpdateWidget(covariant _SpringIn oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.play && !_played) _run();
+  }
+
+  void _run() {
+    _played = true;
+    _ctrl.value = 0.0;
+    _ctrl.animateWith(
+      SpringSimulation(
+        const SpringDescription(mass: 1, stiffness: 240, damping: 21),
+        0,
+        1,
+        0,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (context, child) {
+        final v = _ctrl.value;
+        final pop = v - 1.0; // overshoot > 0
+        final scale = 0.88 + 0.12 * v + pop * 0.12;
+        final opacity = (v * 2.2).clamp(0.0, 1.0);
+        return Opacity(
+          opacity: opacity,
+          child: Transform.scale(
+            scale: scale,
+            child: Transform.translate(
+              offset: Offset(0, 14 * (1.0 - v).clamp(0.0, 1.0)),
+              child: child,
+            ),
+          ),
+        );
+      },
+      child: widget.child,
+    );
+  }
+}
+
 class _SentMessageAnimation extends StatefulWidget {
   final Widget child;
   final VoidCallback onComplete;
@@ -7769,22 +7975,22 @@ class _SentMessageAnimation extends StatefulWidget {
 class _SentMessageAnimationState extends State<_SentMessageAnimation>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
-  late final Animation<double> _opacity;
-  late final Animation<double> _slide;
 
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 220),
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 520));
+    _ctrl.animateWith(
+      SpringSimulation(
+        const SpringDescription(mass: 1, stiffness: 260, damping: 22),
+        0,
+        1,
+        0,
+      ),
     );
-    _opacity = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
-    _slide = Tween<double>(
-      begin: 16,
-      end: 0,
-    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
-    _ctrl.forward().whenComplete(widget.onComplete);
+    _ctrl.addStatusListener((status) {
+      if (status == AnimationStatus.completed) widget.onComplete();
+    });
   }
 
   @override
@@ -7797,13 +8003,22 @@ class _SentMessageAnimationState extends State<_SentMessageAnimation>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _ctrl,
-      builder: (context, child) => Opacity(
-        opacity: _opacity.value,
-        child: Transform.translate(
-          offset: Offset(0, _slide.value),
-          child: child,
-        ),
-      ),
+      builder: (context, child) {
+        final v = _ctrl.value;
+        final pop = v - 1.0; // overshoot пружины
+        final scale = 0.82 + 0.18 * v + pop * 0.14;
+        final opacity = (v * 2.6).clamp(0.0, 1.0);
+        return Opacity(
+          opacity: opacity,
+          child: Transform.scale(
+            scale: scale,
+            child: Transform.translate(
+              offset: Offset(0, 16 * (1.0 - v).clamp(0.0, 1.0)),
+              child: child,
+            ),
+          ),
+        );
+      },
       child: widget.child,
     );
   }
