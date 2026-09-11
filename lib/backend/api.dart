@@ -94,6 +94,12 @@ class Api {
   static const Duration _endpointTimeout = Duration(seconds: 5);
   static const Duration _livenessInterval = Duration(seconds: 5);
 
+  /// Реальный сетевой пинг раз в [_probeEveryTicks] тиков: локальный
+  /// session.state() не видит half-open TCP, из-за чего пуши тихо
+  /// перестают приходить, пока статус остаётся online.
+  static const int _probeEveryTicks = 6; // ~30с
+  int _livenessTickCount = 0;
+
   int get sessionEpoch => _sessionEpoch;
 
   // Публичное API
@@ -732,6 +738,14 @@ class Api {
     if (st != 'online' && st != 'connected') {
       logger.w('kolibri сессия "$st" — реконнект');
       _onDisconnected();
+      return;
+    }
+    // Периодический сетевой пробник: ловит зомби-сокет, при котором
+    // локальный статус online, а пуши от сервера уже не идут.
+    _livenessTickCount++;
+    if (_livenessTickCount >= _probeEveryTicks) {
+      _livenessTickCount = 0;
+      unawaited(_probeLiveness());
       return;
     }
     final interactive = !MayakSettings.ghostMode.value;

@@ -361,6 +361,7 @@ class _ChatScreenState extends State<ChatScreen>
   bool _commentsLoadingMore = false;
   bool _commentsHasMore = true;
   StreamSubscription<SessionState>? _connSub;
+  SessionState? _lastConnState;
   final Map<String, ValueNotifier<Map<String, dynamic>?>> _reactionNotifiers =
       {};
   final ValueNotifier<ReactionAnimationEvent?> _reactionAnimation =
@@ -817,8 +818,14 @@ class _ChatScreenState extends State<ChatScreen>
     ChatMembersStore.instance
         .listenable(widget.chatId)
         .addListener(_recomputeHeaderStatus);
-    _connSub = api.stateStream.listen((_) {
+    _connSub = api.stateStream.listen((state) {
+      final wasOnline = _lastConnState == SessionState.online;
+      _lastConnState = state;
       if (mounted) _recomputeHeaderStatus();
+      // После реконнекта догоняем сообщения, пропущенные за время разрыва.
+      if (state == SessionState.online && !wasOnline) {
+        unawaited(_chatController.catchUpAfterReconnect());
+      }
     });
     debugForceOffline.addListener(_recomputeHeaderStatus);
     PresenceFetch.revision.addListener(_onPresenceChanged);
