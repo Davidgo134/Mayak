@@ -1814,6 +1814,12 @@ abstract class AppLocalizations {
   /// **'Frost blur'**
   String get appearanceComposerBackgroundFrost;
 
+  /// No description provided for @appearanceComposerBlur.
+  ///
+  /// In en, this message translates to:
+  /// **'Blur'**
+  String get appearanceComposerBlur;
+
   /// No description provided for @appearanceNavPillTitle.
   ///
   /// In en, this message translates to:

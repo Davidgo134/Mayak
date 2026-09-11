@@ -345,7 +345,9 @@ class VideoNoteRecordingLayer extends StatefulWidget {
 
 class _VideoNoteRecordingLayerState extends State<VideoNoteRecordingLayer>
     with SingleTickerProviderStateMixin {
-  static const double _circle = 260;
+  // Размер как у кружка при просмотре (224 * 1.85), на узких экранах —
+  // вписываемся с полями.
+  static const double _circle = 414;
   static const double _maxBlur = AppFrost.overlaySigma;
 
   late final AnimationController _reveal = AnimationController(
@@ -418,34 +420,43 @@ class _VideoNoteRecordingLayerState extends State<VideoNoteRecordingLayer>
             Positioned.fill(
               child: IgnorePointer(
                 child: Center(
-                  child: ValueListenableBuilder<int>(
-                    valueListenable: controller.elapsedMs,
-                    builder: (context, ms, child) => CustomPaint(
-                      foregroundPainter: _NoteProgressPainter(
-                        progress: (ms / VideoNoteController.maxMs).clamp(
-                          0.0,
-                          1.0,
+                  child: Builder(
+                  builder: (context) {
+                    final screenW = MediaQuery.sizeOf(context).width;
+                    final circle = math.min(
+                      _circle,
+                      screenW - 24,
+                    );
+                    return ValueListenableBuilder<int>(
+                      valueListenable: controller.elapsedMs,
+                      builder: (context, ms, child) => CustomPaint(
+                        foregroundPainter: _NoteProgressPainter(
+                          progress: (ms / VideoNoteController.maxMs).clamp(
+                            0.0,
+                            1.0,
+                          ),
+                          color: Colors.white,
                         ),
-                        color: Colors.white,
+                        child: child,
                       ),
-                      child: child,
-                    ),
-                    child: SizedBox(
-                      width: _circle,
-                      height: _circle,
-                      child: Padding(
-                        padding: const EdgeInsets.all(5),
-                        child: ClipOval(
-                          child: ValueListenableBuilder<int?>(
-                            valueListenable: controller.textureId,
-                            builder: (context, texId, _) => texId == null
-                                ? _StubPreview(controller: controller)
-                                : Texture(textureId: texId),
+                      child: SizedBox(
+                        width: circle,
+                        height: circle,
+                        child: Padding(
+                          padding: const EdgeInsets.all(5),
+                          child: ClipOval(
+                            child: ValueListenableBuilder<int?>(
+                              valueListenable: controller.textureId,
+                              builder: (context, texId, _) => texId == null
+                                  ? _StubPreview(controller: controller)
+                                  : Texture(textureId: texId),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ),
+                    );
+                  },
+                ),
                 ),
               ),
             ),
