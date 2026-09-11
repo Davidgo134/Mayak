@@ -12,7 +12,6 @@ import '../screens/chats/chat_list_screen.dart';
 import '../screens/chats/chat_screen.dart';
 import 'auth_limits_sheet.dart';
 import 'update_dialog.dart';
-import 'swipe_route.dart';
 
 class AdaptiveShell extends StatefulWidget {
   const AdaptiveShell({super.key});
@@ -123,7 +122,7 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth < _breakpoint) {
-          return const DepthShift(child: ChatListScreen());
+          return const ChatListScreen();
         }
         final totalWidth = constraints.maxWidth;
         final effectiveListWidth = _listWidth.clamp(
@@ -136,8 +135,7 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
         final cs = Theme.of(context).colorScheme;
         return Scaffold(
           backgroundColor: cs.surface,
-          body: DepthShift(
-            child: Row(
+          body: Row(
             children: [
               SizedBox(
                 width: effectiveListWidth,
@@ -151,25 +149,8 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
                 onDragEnd: _persistListWidth,
               ),
               Expanded(
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 280),
-                  switchInCurve: Curves.easeOutCubic,
-                  switchOutCurve: Curves.easeInCubic,
-                  transitionBuilder: (child, animation) => FadeTransition(
-                    opacity: animation,
-                    child: SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(0, 0.035),
-                        end: Offset.zero,
-                      ).animate(animation),
-                      child: child,
-                    ),
-                  ),
-                  child: _selected == null
-                    ? _EmptyChatPane(
-                        key: const ValueKey('empty_chat_pane'),
-                        colorScheme: cs,
-                      )
+                child: _selected == null
+                    ? _EmptyChatPane(colorScheme: cs)
                     : ChatScreen(
                         key: ValueKey(
                           '${_selected!.chatId}:${_selected!.initialMessageId ?? ''}',
@@ -183,10 +164,8 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
                         embedded: true,
                         onClose: _closeChat,
                       ),
-                ),
               ),
             ],
-          ),
           ),
         );
       },
@@ -254,7 +233,7 @@ class _ResizeDividerState extends State<_ResizeDivider> {
 class _EmptyChatPane extends StatelessWidget {
   final ColorScheme colorScheme;
 
-  const _EmptyChatPane({super.key, required this.colorScheme});
+  const _EmptyChatPane({required this.colorScheme});
 
   @override
   Widget build(BuildContext context) {

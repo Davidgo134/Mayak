@@ -16,8 +16,7 @@ class AppPillGradient {
 
   static ValueNotifier<bool> get current => _setting.current;
 
-  // Функция вырезана: градиент всегда выключен.
-  static Future<bool> load() async => false;
+  static Future<bool> load() => _setting.load();
 
-  static Future<void> save(bool value) async {}
+  static Future<void> save(bool value) => _setting.save(value);
 }

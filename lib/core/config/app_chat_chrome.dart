@@ -15,22 +15,15 @@ class AppChatChrome {
 
   static final _setting = PersistedEnum<ChatChromeStyle>(
     prefKey: prefKey,
-    defaultValue: ChatChromeStyle.transparent,
+    defaultValue: ChatChromeStyle.color,
     encode: _encode,
     decode: _parse,
   );
 
   static ValueNotifier<ChatChromeStyle> get current => _setting.current;
 
-  static ChatChromeStyle _parse(String? value) {
-    final v = enumFromName(
-      ChatChromeStyle.values,
-      value,
-      ChatChromeStyle.transparent,
-    );
-    // Доступны только Нет и Frost blur; прежние варианты мигрируют.
-    return v == ChatChromeStyle.none ? v : ChatChromeStyle.transparent;
-  }
+  static ChatChromeStyle _parse(String? value) =>
+      enumFromName(ChatChromeStyle.values, value, ChatChromeStyle.color);
 
   static String _encode(ChatChromeStyle value) => value.name;
 

@@ -796,16 +796,10 @@ class ChatsModule {
         logger.w(
           'notifMessage: fetch info for unknown chat $chatId failed: $e',
         );
-        // Пуш потерян — форсим рефетч истории с сервера при открытии чата,
-        // иначе сообщение пропадёт до перезапуска приложения.
-        _historyFetched.remove(chatId);
         return;
       }
       rows = await AppDatabase.loadChat(accountId, chatId);
-      if (rows.isEmpty) {
-        _historyFetched.remove(chatId);
-        return;
-      }
+      if (rows.isEmpty) return;
     }
 
     if (status == 'REMOVED' && msgIdStr != null) {

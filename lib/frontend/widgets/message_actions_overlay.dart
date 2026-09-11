@@ -729,16 +729,8 @@ class _MessageActionsLayerState extends State<_MessageActionsLayer>
             children: [
               if (!isClick) ...[
                 Positioned.fill(
-                  child: BackdropFilter(
-                    filter: ui.ImageFilter.blur(
-                      sigmaX: 26 * t + 8 * e,
-                      sigmaY: 26 * t + 8 * e,
-                    ),
-                    child: ColoredBox(
-                      color: Colors.black.withValues(
-                        alpha: 0.22 * t + 0.28 * e,
-                      ),
-                    ),
+                  child: ColoredBox(
+                    color: Colors.black.withValues(alpha: 0.22 * t + 0.28 * e),
                   ),
                 ),
                 if (widget.snapshot != null)

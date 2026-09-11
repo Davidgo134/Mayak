@@ -101,15 +101,19 @@ class SlidingPillNav extends StatelessWidget {
             liquid: false,
           );
         }
-        return ValueListenableBuilder<NavPillStyle>(
-          valueListenable: AppNavPillStyle.current,
-          builder: (context, navStyle, _) => _buildNav(
-            context,
-            glossy: true,
-            gradient: false,
-            frost: NavPillMaterial.isFrost(navStyle),
-            liquid: NavPillMaterial.isLiquid(navStyle),
-          ),
+        return ValueListenableBuilder<bool>(
+          valueListenable: AppPillGradient.current,
+          builder: (context, gradient, _) =>
+              ValueListenableBuilder<NavPillStyle>(
+                valueListenable: AppNavPillStyle.current,
+                builder: (context, navStyle, _) => _buildNav(
+                  context,
+                  glossy: true,
+                  gradient: gradient,
+                  frost: NavPillMaterial.isFrost(navStyle),
+                  liquid: NavPillMaterial.isLiquid(navStyle),
+                ),
+              ),
         );
       },
     );

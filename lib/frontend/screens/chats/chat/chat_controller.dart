@@ -404,38 +404,6 @@ class ChatController extends ChangeNotifier {
     }
   }
 
-  /// Догоняет сообщения, пропущенные за время разрыва соединения:
-  /// запрашивает у сервера всё после последнего сообщения в кеше и мержит.
-  /// Вызывается при возврате сессии в online у открытого чата.
-  Future<void> catchUpAfterReconnect() async {
-    if (myId == 0 || chatId == 0) return;
-    if (loadingGap || isLoadingMore || !chats.wasHistoryFetched(chatId)) return;
-    final newest = messages.isEmpty ? 0 : messages.last.time;
-    try {
-      final fetched = newest > 0
-          ? await messagesModule.fetchHistory(
-              myId,
-              chatId,
-              fromTime: newest + 1,
-              forward: historyPageSize * 2,
-              backward: 0,
-            )
-          : await messagesModule.fetchHistory(myId, chatId);
-      if (!isMounted()) return;
-      if (fetched.isNotEmpty && MayakSettings.viewDeleted.value) {
-        await chats.reconcileDeletedFromFetch(myId, chatId, fetched);
-      }
-      final refreshed = await loadInitialFromDb(
-        onlyVisible: !MayakSettings.viewDeleted.value,
-      );
-      if (!isMounted()) return;
-      mergeMessages(refreshed);
-      unawaited(chats.reconcileLastMessageIfPlaceholder(myId, chatId));
-    } catch (e) {
-      logger.w('catchUpAfterReconnect($chatId): $e');
-    }
-  }
-
   @override
   void dispose() {
     messagesRev.dispose();
