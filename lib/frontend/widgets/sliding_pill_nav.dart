@@ -208,7 +208,7 @@ class SlidingPillNav extends StatelessWidget {
             width: geometry.activeWidth - 8,
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: cs.primary,
+                color: cs.primaryFixedDim,
                 borderRadius: BorderRadius.circular(26),
               ),
             ),
@@ -272,7 +272,7 @@ class _PillNavCell extends StatelessWidget {
   });
 
   Widget _buildIcon() {
-    final color = selected ? cs.onPrimary : cs.onSurface;
+    final color = selected ? cs.onPrimaryFixedVariant : cs.onSurface;
     final asset = item.animationAsset;
     if (asset != null) {
       return AnimatedLottieIcon(
@@ -320,7 +320,7 @@ class _PillNavCell extends StatelessWidget {
                             Text(
                               item.label,
                               style: TextStyle(
-                                color: cs.onPrimary,
+                                color: cs.onPrimaryFixedVariant,
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
                               ),
