@@ -1085,14 +1085,20 @@ class MayakAppState extends State<MayakApp>
       return (light: _seedCacheLight!, dark: _seedCacheDark!);
     }
     _seedCacheKey = seed;
+    // Выбранный в палитре цвет применяем как primary без тонального сдвига:
+    // какой цвет накрутил — такой и стоит. onPrimary — по контрасту.
+    final onSeed =
+        ThemeData.estimateBrightnessForColor(seed) == Brightness.dark
+        ? Colors.white
+        : Colors.black;
     _seedCacheLight = ColorScheme.fromSeed(
       seedColor: seed,
       brightness: Brightness.light,
-    );
+    ).copyWith(primary: seed, onPrimary: onSeed);
     _seedCacheDark = ColorScheme.fromSeed(
       seedColor: seed,
       brightness: Brightness.dark,
-    );
+    ).copyWith(primary: seed, onPrimary: onSeed);
     return (light: _seedCacheLight!, dark: _seedCacheDark!);
   }
 
@@ -1143,38 +1149,30 @@ class MayakAppState extends State<MayakApp>
         surfaceContainer: const Color(0xFF101010),
         surfaceContainerHigh: const Color(0xFF161616),
         surfaceContainerHighest: const Color(0xFF1C1C1C),
+        primaryContainer: Color.alphaBlend(
+          base.primary.withValues(alpha: 0.35),
+          base.surface,
+        ),
+        onPrimaryContainer: Colors.white,
       );
     }
+    // Не тонируем фон primary — оставляем чистый M3, как в системе.
     return base.copyWith(
-      surface: Color.alphaBlend(
-        base.primary.withValues(alpha: 0.05),
-        const Color(0xFF0D0D14),
+      primaryContainer: Color.alphaBlend(
+        base.primary.withValues(alpha: 0.35),
+        base.surface,
       ),
-      surfaceContainerHigh: Color.alphaBlend(
-        base.primary.withValues(alpha: 0.08),
-        const Color(0xFF1A1A26),
-      ),
-      surfaceContainerHighest: Color.alphaBlend(
-        base.primary.withValues(alpha: 0.12),
-        const Color(0xFF262636),
-      ),
+      onPrimaryContainer: Colors.white,
     );
   }
 
   ColorScheme _adjustLightScheme(ColorScheme base) {
     return base.copyWith(
-      surface: Color.alphaBlend(
-        base.primary.withValues(alpha: 0.06),
-        const Color(0xFFF5F5FA),
+      primaryContainer: Color.alphaBlend(
+        base.primary.withValues(alpha: 0.35),
+        base.surface,
       ),
-      surfaceContainerHigh: Color.alphaBlend(
-        base.primary.withValues(alpha: 0.08),
-        const Color(0xFFEAEAF2),
-      ),
-      surfaceContainerHighest: Color.alphaBlend(
-        base.primary.withValues(alpha: 0.11),
-        const Color(0xFFDEDEE8),
-      ),
+      onPrimaryContainer: Colors.black,
     );
   }
 
