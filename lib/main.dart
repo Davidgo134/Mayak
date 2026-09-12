@@ -1085,20 +1085,14 @@ class MayakAppState extends State<MayakApp>
       return (light: _seedCacheLight!, dark: _seedCacheDark!);
     }
     _seedCacheKey = seed;
-    // Выбранный в палитре цвет применяем как primary без тонального сдвига:
-    // какой цвет накрутил — такой и стоит. onPrimary — по контрасту.
-    final onSeed =
-        ThemeData.estimateBrightnessForColor(seed) == Brightness.dark
-        ? Colors.white
-        : Colors.black;
-    _seedCacheLight = ColorScheme.fromSeed(
-      seedColor: seed,
-      brightness: Brightness.light,
-    ).copyWith(primary: seed, onPrimary: onSeed);
-    _seedCacheDark = ColorScheme.fromSeed(
-      seedColor: seed,
-      brightness: Brightness.dark,
-    ).copyWith(primary: seed, onPrimary: onSeed);
+    _seedCacheLight = _exactRoles(
+      ColorScheme.fromSeed(seedColor: seed, brightness: Brightness.light),
+      seed,
+    );
+    _seedCacheDark = _exactRoles(
+      ColorScheme.fromSeed(seedColor: seed, brightness: Brightness.dark),
+      seed,
+    );
     return (light: _seedCacheLight!, dark: _seedCacheDark!);
   }
 
@@ -1140,6 +1134,33 @@ class MayakAppState extends State<MayakApp>
     );
   }
 
+  // Никаких фишек Material 3 с тонами: переданный цвет встаёт во ВСЕ
+  // акцентные роли точно как есть (как Monet в AyuGram/exteraGram).
+  // Поверхности остаются нейтральными M3, контраст on* считается автоматом.
+  ColorScheme _exactRoles(ColorScheme s, Color c) {
+    final on = ThemeData.estimateBrightnessForColor(c) == Brightness.dark
+        ? Colors.white
+        : Colors.black;
+    return s.copyWith(
+      primary: c,
+      onPrimary: on,
+      primaryContainer: c,
+      onPrimaryContainer: on,
+      primaryFixed: c,
+      primaryFixedDim: c,
+      onPrimaryFixed: on,
+      onPrimaryFixedVariant: on,
+      secondary: c,
+      onSecondary: on,
+      secondaryContainer: c,
+      onSecondaryContainer: on,
+      tertiary: c,
+      onTertiary: on,
+      tertiaryContainer: c,
+      onTertiaryContainer: on,
+    );
+  }
+
   ColorScheme _adjustDarkScheme(ColorScheme base) {
     if (AppAmoled.current.value) {
       return base.copyWith(
@@ -1149,32 +1170,12 @@ class MayakAppState extends State<MayakApp>
         surfaceContainer: const Color(0xFF101010),
         surfaceContainerHigh: const Color(0xFF161616),
         surfaceContainerHighest: const Color(0xFF1C1C1C),
-        primaryContainer: Color.alphaBlend(
-          base.primary.withValues(alpha: 0.35),
-          base.surface,
-        ),
-        onPrimaryContainer: Colors.white,
       );
     }
-    // Не тонируем фон primary — оставляем чистый M3, как в системе.
-    return base.copyWith(
-      primaryContainer: Color.alphaBlend(
-        base.primary.withValues(alpha: 0.35),
-        base.surface,
-      ),
-      onPrimaryContainer: Colors.white,
-    );
+    return base;
   }
 
-  ColorScheme _adjustLightScheme(ColorScheme base) {
-    return base.copyWith(
-      primaryContainer: Color.alphaBlend(
-        base.primary.withValues(alpha: 0.35),
-        base.surface,
-      ),
-      onPrimaryContainer: Colors.black,
-    );
-  }
+  ColorScheme _adjustLightScheme(ColorScheme base) => base;
 
   @override
   Widget build(BuildContext context) {
@@ -1198,8 +1199,8 @@ class MayakAppState extends State<MayakApp>
               lightBase = s.light;
               darkBase = s.dark;
             } else if (lightDynamic != null && darkDynamic != null) {
-              lightBase = lightDynamic;
-              darkBase = darkDynamic;
+              lightBase = _exactRoles(lightDynamic, lightDynamic.primary);
+              darkBase = _exactRoles(darkDynamic, darkDynamic.primary);
             } else {
               final s = _schemesForSeed(_fallbackSeed);
               lightBase = lightDynamic ?? s.light;

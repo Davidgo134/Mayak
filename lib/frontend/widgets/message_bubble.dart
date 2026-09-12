@@ -1035,7 +1035,7 @@ class MessageBubble extends StatelessWidget {
             !_isVideoNote &&
             _jumboAnimojiUrls == null);
     final hasMultiPhotos = _computeHasMultiplePhotosNoCaption();
-    final textColor = bubbleTextColor(context);
+    final textColor = isMe ? cs.onPrimaryContainer : bubbleTextColor(context);
 
     final topMargin = _topMarginFor(contentType, shape);
     final bottomMargin = _bottomMarginFor(contentType, shape);
