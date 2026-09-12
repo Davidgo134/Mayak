@@ -10,7 +10,7 @@ class AppAccent {
     (label: 'Синий', seed: Color(0xFF4F8EFF)),
     (label: 'Бирюзовый', seed: Color(0xFF00BFA5)),
     (label: 'Зелёный', seed: Color(0xFF43A047)),
-    (label: 'Янтарный', seed: Color(0xFFFFB300)),
+    (label: 'Золотой', seed: Color(0xFFFFC107)),
     (label: 'Розовый', seed: Color(0xFFE91E63)),
     (label: 'Красный', seed: Color(0xFFE53935)),
     (label: 'Фиолетовый', seed: Color(0xFF7E57C2)),
