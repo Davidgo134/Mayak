@@ -36,8 +36,15 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Rust crypto tests
+        run: cargo test
+        working-directory: native/komet_crypto/rust
+
       - name: Flutter analyze
         run: flutter analyze lib test tool native/komet_crypto/lib
+
+      - name: Flutter tests
+        run: flutter test
 
       - name: Configure Gradle
         run: |
