@@ -108,6 +108,7 @@ class PhotoAttachment extends MessageAttachment {
       width: map['width'] as int?,
       height: map['height'] as int?,
       size: map['size'] as int?,
+      localPath: map['localPath'] as String?,
     );
   }
 
@@ -165,6 +166,7 @@ class VideoAttachment extends MessageAttachment {
       duration: map['duration'] as int?,
       size: map['size'] as int?,
       videoType: map['videoType'] as int?,
+      localPath: map['localPath'] as String?,
     );
   }
 
