@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../../core/auth/local_auth_service.dart';
 import '../../../core/storage/token_storage.dart';
 import '../../../core/storage/webapp_storage.dart';
 import '../../../core/utils/haptics.dart';
@@ -34,6 +35,13 @@ typedef WebAppMobileIdVerifier = Future<Map<String, dynamic>?> Function(
 typedef WebAppEmitter =
     void Function(String method, String payload, bool private);
 
+typedef BiometryAccessResolver = Future<(bool, bool)> Function(
+  int accountId,
+  int botId,
+);
+
+typedef BiometryAuthenticator = Future<bool> Function(String reason);
+
 const Duration _gestureWindow = Duration(milliseconds: 3000);
 
 const Set<String> _gestureGated = {
@@ -42,6 +50,7 @@ const Set<String> _gestureGated = {
   'WebAppDownloadFile',
   'WebAppOpenLink',
   'WebAppOpenMaxLink',
+  'WebAppRequestPhone',
 };
 
 const Map<String, String> _methodSlugs = {
@@ -157,6 +166,8 @@ class WebAppBridge {
     this.privateChannel = false,
     this.mobileIdVerifier,
     this.emitter,
+    this.biometryAccessResolver,
+    this.biometryAuthenticator,
   });
 
   final int botId;
@@ -167,6 +178,8 @@ class WebAppBridge {
   final bool privateChannel;
   final WebAppMobileIdVerifier? mobileIdVerifier;
   final WebAppEmitter? emitter;
+  final BiometryAccessResolver? biometryAccessResolver;
+  final BiometryAuthenticator? biometryAuthenticator;
 
   InAppWebViewController? _controller;
   DateTime? _lastGesture;
@@ -332,8 +345,10 @@ class WebAppBridge {
         await _biometryInfo(method, requestId);
         return;
       case 'WebAppBiometryRequestAccess':
+        await _biometryRequestAccess(method, requestId);
+        return;
       case 'WebAppBiometryRequestAuth':
-        await _biometryAuth(method, requestId);
+        await _biometryRequestAuth(method, requestId);
         return;
       case 'WebAppBiometryUpdateToken':
         await _biometryUpdateToken(method, requestId, data);
@@ -593,6 +608,15 @@ class WebAppBridge {
       });
       return;
     }
+    final canAuthenticate = await LocalAuthService.instance.canAuthenticate();
+    if (!canAuthenticate) {
+      _send(method, {
+        'requestId': ?requestId,
+        'available': false,
+        'deviceId': deviceId,
+      });
+      return;
+    }
     final (requested, granted) = await WebAppStorage.biometryAccess(
       accountId,
       botId,
@@ -609,9 +633,51 @@ class WebAppBridge {
     });
   }
 
-  Future<void> _biometryAuth(String method, String? requestId) async {
+  Future<void> _biometryRequestAccess(String method, String? requestId) async {
     final accountId = await TokenStorage.getActiveAccountId();
     if (accountId == null) {
+      _fail(method, requestId, 'access_denied');
+      return;
+    }
+    final context = contextResolver();
+    if (context == null) {
+      _fail(method, requestId, 'access_denied');
+      return;
+    }
+    final granted = await showConfirmDialog(
+      context,
+      title: 'Биометрия',
+      message: 'Разрешить мини-приложению использовать биометрию устройства для входа?',
+      confirmLabel: 'Разрешить',
+    );
+    await WebAppStorage.setBiometryAccess(
+      accountId,
+      botId,
+      requested: true,
+      granted: granted,
+    );
+    _send(method, {
+      'requestId': ?requestId,
+      'granted': granted,
+      'accessGranted': granted,
+    });
+  }
+
+  Future<void> _biometryRequestAuth(String method, String? requestId) async {
+    final accountId = await TokenStorage.getActiveAccountId();
+    if (accountId == null) {
+      _fail(method, requestId, 'access_denied');
+      return;
+    }
+    final (requested, granted) = await _resolveBiometryAccess(accountId);
+    if (!requested || !granted) {
+      _fail(method, requestId, 'access_denied');
+      return;
+    }
+    final authenticated = await _authenticateBiometry(
+      'Подтвердите вход в мини-приложение',
+    );
+    if (!authenticated) {
       _fail(method, requestId, 'access_denied');
       return;
     }
@@ -620,12 +686,6 @@ class WebAppBridge {
       token = _randomToken();
       await WebAppStorage.saveBiometryToken(accountId, botId, token);
     }
-    await WebAppStorage.setBiometryAccess(
-      accountId,
-      botId,
-      requested: true,
-      granted: true,
-    );
     _send(method, {
       'requestId': ?requestId,
       'token': token,
@@ -633,6 +693,18 @@ class WebAppBridge {
       'granted': true,
       'accessGranted': true,
     });
+  }
+
+  Future<(bool, bool)> _resolveBiometryAccess(int accountId) {
+    final resolver = biometryAccessResolver;
+    if (resolver != null) return resolver(accountId, botId);
+    return WebAppStorage.biometryAccess(accountId, botId);
+  }
+
+  Future<bool> _authenticateBiometry(String reason) {
+    final authenticator = biometryAuthenticator;
+    if (authenticator != null) return authenticator(reason);
+    return LocalAuthService.instance.authenticate(reason);
   }
 
   Future<void> _biometryUpdateToken(

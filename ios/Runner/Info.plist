@@ -110,5 +110,7 @@
 		<string>yandexmaps</string>
 		<string>yandexnavi</string>
 	</array>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Разрешите использовать Face ID для входа в мини-приложения</string>
 </dict>
 </plist>
