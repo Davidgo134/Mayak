@@ -31,6 +31,16 @@ void main() {
     expect(await kc.decryptMessage(text: encrypted, key: key), plaintext);
   });
 
+  test('decrypts the frozen v2 envelope during phase A', () async {
+    final key = await kc.deriveKey(password: 'вектор два');
+    const encrypted = '$frozen';
+
+    expect(
+      await kc.decryptMessage(text: encrypted, key: key),
+      'кросс версия тест',
+    );
+  });
+
   test('derives the same key from the same password', () async {
     final a = await kc.deriveKey(password: 'один ключ');
     final b = await kc.deriveKey(password: 'один ключ');
