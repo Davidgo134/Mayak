@@ -260,6 +260,7 @@ class _ChatListScreenState extends State<ChatListScreen>
   bool _deferReloads = false;
   bool _reloadQueued = false;
   bool _reloadInFlight = false;
+  Timer? _reloadThrottleTimer;
   Timer? _settleTimer;
   bool get _shareMode => widget.sharePayload != null;
   bool get _isSelectionMode => !_shareMode && _selectedChats.isNotEmpty;
@@ -926,7 +927,16 @@ class _ChatListScreenState extends State<ChatListScreen>
       _reloadQueued = true;
       return;
     }
-    unawaited(_runReload());
+    if (_reloadThrottleTimer != null) {
+      _reloadQueued = true;
+      return;
+    }
+    _reloadThrottleTimer = Timer(const Duration(milliseconds: 150), () {
+      _reloadThrottleTimer = null;
+      if (!mounted || _deferReloads) return;
+      _reloadQueued = false;
+      unawaited(_runReload());
+    });
   }
 
   Future<void> _runReload() async {
@@ -1477,6 +1487,7 @@ class _ChatListScreenState extends State<ChatListScreen>
     _shareCaption?.dispose();
     appRouteObserver.unsubscribe(this);
     _settleTimer?.cancel();
+    _reloadThrottleTimer?.cancel();
     chats.chatsChanged.removeListener(_onChatsChanged);
     ArchivedChatsStore.instance.revision.removeListener(_onArchivedChanged);
     ChatEncryptionStore.instance.revision.removeListener(_onEncryptionChanged);
