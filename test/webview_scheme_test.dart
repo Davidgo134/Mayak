@@ -27,6 +27,31 @@ void main() {
       expect(leavesWebView(null), isFalse);
       expect(leavesWebView(''), isFalse);
     });
+
+    test('javascript and file schemes leave the web view and get cancelled', () {
+      expect(leavesWebView('javascript'), isTrue);
+      expect(leavesWebView('file'), isTrue);
+      expect(leavesWebView('FILE'), isTrue);
+    });
+  });
+
+  group('webViewOriginMatches', () {
+    test('foreign origins never match the launch origin', () {
+      final uri = Uri.parse('https://evil.example.com/path');
+      expect(webViewOriginMatches(uri, 'bot.example.com'), isFalse);
+      expect(webViewOriginMatches(uri, null), isFalse);
+      expect(webViewOriginMatches(uri, ''), isFalse);
+    });
+
+    test('the launch origin matches itself case-insensitively', () {
+      final uri = Uri.parse('https://BOT.example.com/path');
+      expect(webViewOriginMatches(uri, 'bot.example.com'), isTrue);
+    });
+
+    test('subdomains do not match the parent origin', () {
+      final uri = Uri.parse('https://cdn.bot.example.com/x');
+      expect(webViewOriginMatches(uri, 'bot.example.com'), isFalse);
+    });
   });
 
   test('a max deep link from a web view resolves to in-app content', () {
