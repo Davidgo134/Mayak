@@ -1820,6 +1820,18 @@ abstract class AppLocalizations {
   /// **'Blur'**
   String get appearanceComposerBlur;
 
+  /// No description provided for @appearanceInterfaceBlurTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Interface blur'**
+  String get appearanceInterfaceBlurTitle;
+
+  /// No description provided for @appearanceInterfaceBlurSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat header, input bar, and section switcher'**
+  String get appearanceInterfaceBlurSubtitle;
+
   /// No description provided for @appearanceNavPillTitle.
   ///
   /// In en, this message translates to:

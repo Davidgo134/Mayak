@@ -922,6 +922,13 @@ class AppLocalizationsRu extends AppLocalizations {
   String get appearanceComposerBlur => 'Блюр';
 
   @override
+  String get appearanceInterfaceBlurTitle => 'Размытие интерфейса';
+
+  @override
+  String get appearanceInterfaceBlurSubtitle =>
+      'Верхняя панель, панель ввода и переключатели';
+
+  @override
   String get appearanceNavPillTitle => 'Вид переключателей';
 
   @override

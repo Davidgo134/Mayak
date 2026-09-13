@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -16,7 +17,6 @@ import '../../../core/utils/debouncer.dart';
 import '../../../core/utils/haptics.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../main.dart';
-import '../../widgets/liquid_glass.dart';
 import '../../widgets/settings_card.dart';
 import '../../../core/config/app_shape.dart';
 
@@ -120,11 +120,7 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
               child: _BubbleBehaviorCard(onChanged: _onBehaviorChanged),
             ),
             const SizedBox(height: 12),
-            const _StaggerIn(index: 3, child: _ChatChromeCard()),
-            const SizedBox(height: 12),
-            const _StaggerIn(index: 4, child: _ComposerBarCard()),
-            const SizedBox(height: 12),
-            const _StaggerIn(index: 5, child: _NavPillStyleCard()),
+            const _StaggerIn(index: 3, child: _InterfaceBlurCard()),
           ],
         ),
       ),
@@ -132,186 +128,65 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
   }
 }
 
-class _ChatChromeCard extends StatelessWidget {
-  const _ChatChromeCard();
+class _InterfaceBlurCard extends StatelessWidget {
+  const _InterfaceBlurCard();
 
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final l10n = AppLocalizations.of(context)!;
-    return SettingsPanel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            l10n.appearanceChatChromeTitle,
-            style: TextStyle(
-              color: cs.onSurface,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            l10n.appearanceChatChromeSubtitle,
-            style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
-          ),
-          const SizedBox(height: 16),
-          ValueListenableBuilder<ChatChromeStyle>(
-            valueListenable: AppChatChrome.current,
-            builder: (context, current, _) {
-              final selectable =
-                  current == ChatChromeStyle.liquidGlass &&
-                      !LiquidGlass.isSupported
-                  ? ChatChromeStyle.transparent
-                  : current;
-              return SegmentedButton<ChatChromeStyle>(
-                showSelectedIcon: false,
-                segments: [
-                  ButtonSegment(
-                    value: ChatChromeStyle.transparent,
-                    label: Text(l10n.appearanceChatChromeTransparent),
-                  ),
-                  ButtonSegment(
-                    value: ChatChromeStyle.none,
-                    label: Text(l10n.appearanceChatChromeNone),
-                  ),
-                ],
-                selected: {selectable},
-                onSelectionChanged: (set) {
-                  if (set.isNotEmpty) {
-                    Haptics.selection();
-                    AppChatChrome.save(set.first);
-                  }
-                },
-              );
-            },
-          ),
-        ],
+  Future<void> _save(bool enabled) {
+    return Future.wait([
+      AppChatChrome.save(
+        enabled ? ChatChromeStyle.transparent : ChatChromeStyle.none,
       ),
-    );
+      AppComposerBackground.save(
+        enabled ? ComposerBackground.frostBlur : ComposerBackground.standard,
+      ),
+      AppNavPillStyle.save(
+        enabled ? NavPillStyle.frostBlur : NavPillStyle.glossy,
+      ),
+    ]);
   }
-}
-
-class _ComposerBarCard extends StatelessWidget {
-  const _ComposerBarCard();
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
     return SettingsPanel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            l10n.appearanceComposerTitle,
-            style: TextStyle(
-              color: cs.onSurface,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            l10n.appearanceComposerSubtitle,
-            style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
-          ),
-          const SizedBox(height: 16),
-          ValueListenableBuilder<ComposerBackground>(
-            valueListenable: AppComposerBackground.current,
-            builder: (context, current, _) {
-              final blurOn =
-                  ComposerMaterial.isFrost(current) ||
-                  current == ComposerBackground.frostBlur;
-              return Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      l10n.appearanceComposerBlur,
+      child: ValueListenableBuilder<ComposerBackground>(
+        valueListenable: AppComposerBackground.current,
+        builder: (context, background, _) {
+          final enabled = ComposerMaterial.isFrost(background);
+          return Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.appearanceInterfaceBlurTitle,
                       style: TextStyle(
                         color: cs.onSurface,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                  ),
-                  Switch(
-                    value: blurOn,
-                    onChanged: (v) {
-                      Haptics.selection();
-                      AppComposerBackground.save(
-                        v ? ComposerBackground.frostBlur
-                          : ComposerBackground.standard,
-                      );
-                    },
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _NavPillStyleCard extends StatelessWidget {
-  const _NavPillStyleCard();
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final l10n = AppLocalizations.of(context)!;
-    return SettingsPanel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            l10n.appearanceNavPillTitle,
-            style: TextStyle(
-              color: cs.onSurface,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            l10n.appearanceNavPillSubtitle,
-            style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
-          ),
-          const SizedBox(height: 16),
-          ValueListenableBuilder<NavPillStyle>(
-            valueListenable: AppNavPillStyle.current,
-            builder: (context, current, _) {
-              final selectable =
-                  current == NavPillStyle.liquidGlass &&
-                      !LiquidGlass.isSupported
-                  ? NavPillStyle.frostBlur
-                  : current;
-              return SegmentedButton<NavPillStyle>(
-                showSelectedIcon: false,
-                segments: [
-                  ButtonSegment(
-                    value: NavPillStyle.glossy,
-                    label: Text(l10n.appearanceNavPillGlossy),
-                  ),
-                  ButtonSegment(
-                    value: NavPillStyle.frostBlur,
-                    label: Text(l10n.appearanceNavPillFrost),
-                  ),
-                ],
-                selected: {selectable},
-                onSelectionChanged: (set) {
-                  if (set.isNotEmpty) {
-                    Haptics.selection();
-                    AppNavPillStyle.save(set.first);
-                  }
+                    const SizedBox(height: 4),
+                    Text(
+                      l10n.appearanceInterfaceBlurSubtitle,
+                      style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              Switch(
+                value: enabled,
+                onChanged: (value) {
+                  Haptics.selection();
+                  unawaited(_save(value));
                 },
-              );
-            },
-          ),
-        ],
+              ),
+            ],
+          );
+        },
       ),
     );
   }

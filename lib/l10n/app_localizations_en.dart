@@ -920,6 +920,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearanceComposerBlur => 'Blur';
 
   @override
+  String get appearanceInterfaceBlurTitle => 'Interface blur';
+
+  @override
+  String get appearanceInterfaceBlurSubtitle =>
+      'Chat header, input bar, and section switcher';
+
+  @override
   String get appearanceNavPillTitle => 'Switcher style';
 
   @override
