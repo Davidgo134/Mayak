@@ -301,6 +301,8 @@
   "appearanceComposerBackgroundStandard": "Default",
   "appearanceComposerBackgroundFrost": "Frost blur",
   "appearanceComposerBlur": "Размытие фона панели ввода",
+  "appearanceInterfaceBlurTitle": "Размытие интерфейса",
+  "appearanceInterfaceBlurSubtitle": "Верхняя панель, панель ввода и переключатели",
   "appearanceNavPillTitle": "Вид переключателей",
   "appearanceNavPillSubtitle": "Переключатель разделов на экране чатов",
   "appearanceNavPillGlossy": "Glossy",

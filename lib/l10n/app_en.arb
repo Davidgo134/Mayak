@@ -343,6 +343,8 @@
   "appearanceComposerBackgroundStandard": "Default",
   "appearanceComposerBackgroundFrost": "Frost blur",
   "appearanceComposerBlur": "Blur input bar background",
+  "appearanceInterfaceBlurTitle": "Interface blur",
+  "appearanceInterfaceBlurSubtitle": "Chat header, input bar, and section switcher",
   "appearanceNavPillTitle": "Switcher style",
   "appearanceNavPillSubtitle": "Section switcher on the chats screen",
   "appearanceNavPillGlossy": "Glossy",
