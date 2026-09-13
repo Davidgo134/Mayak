@@ -662,18 +662,54 @@ class CachedMessage {
     return compute(_decodeRows, rows);
   }
 
-  Map<String, dynamic> toDbRow() => {
-    'id': id,
-    'account_id': accountId,
-    'chat_id': chatId,
-    'sender_id': senderId,
-    'text': text,
-    'time': time,
-    'status': status,
-    'payload': payload != null ? jsonEncode(payload) : null,
-    'deleted': deleted ? 1 : 0,
-    'edit_history': editHistory != null ? jsonEncode(editHistory) : null,
-  };
+  Map<String, dynamic>? _payloadForStorage() {
+    final stored = payload == null
+        ? <String, dynamic>{}
+        : Map<String, dynamic>.from(payload!);
+    final localAttachments = attachments;
+    if (localAttachments != null && localAttachments.isNotEmpty) {
+      stored['attaches'] = localAttachments
+          .map(_attachmentForStorage)
+          .toList();
+    }
+    return stored.isEmpty ? null : stored;
+  }
+
+  static Map<String, dynamic> _attachmentForStorage(
+    MessageAttachment attachment,
+  ) {
+    final stored = Map<String, dynamic>.from(attachment.toMap());
+    switch (attachment) {
+      case PhotoAttachment(:final localPath):
+        if (localPath != null) stored['localPath'] = localPath;
+      case VideoAttachment(:final localPath):
+        if (localPath != null) stored['localPath'] = localPath;
+      case AudioAttachment(:final localPath, :final waveform):
+        if (localPath != null) stored['localPath'] = localPath;
+        if (waveform != null) stored['wave'] = waveform;
+      case FileAttachment():
+        break;
+      default:
+        break;
+    }
+    return stored;
+  }
+
+  Map<String, dynamic> toDbRow() {
+    final storedPayload = _payloadForStorage();
+    return {
+      'id': id,
+      'account_id': accountId,
+      'chat_id': chatId,
+      'sender_id': senderId,
+      'text': text,
+      'time': time,
+      'status': status,
+      'payload': storedPayload != null ? jsonEncode(storedPayload) : null,
+      'deleted': deleted ? 1 : 0,
+      'edit_history': editHistory != null ? jsonEncode(editHistory) : null,
+    };
+  }
 
   static CachedMessage fromPushPayload(int accountId, int chatId, Map msg) {
     final full = Map<String, dynamic>.from(msg);
