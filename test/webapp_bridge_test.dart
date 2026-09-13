@@ -1,16 +1,22 @@
 import 'dart:convert';
 
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mayak/frontend/screens/webapp/web_app_bridge.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   late List<(String, Map<String, dynamic>, bool)> sent;
   late int closeCalls;
 
   WebAppBridge buildBridge({
     bool privateChannel = false,
     String entryPoint = WebAppEntryPoint.webApp,
+    BiometryAccessResolver? biometryAccessResolver,
+    BiometryAuthenticator? biometryAuthenticator,
   }) {
     return WebAppBridge(
       botId: 777,
@@ -19,6 +25,8 @@ void main() {
       contextResolver: () => null,
       viewportResolver: () => const Size(420, 800),
       onClose: () => closeCalls++,
+      biometryAccessResolver: biometryAccessResolver,
+      biometryAuthenticator: biometryAuthenticator,
       emitter: (method, payload, private) => sent.add((
         method,
         jsonDecode(payload) as Map<String, dynamic>,
@@ -169,7 +177,95 @@ void main() {
     });
   });
 
-  test('answers NFC availability without pretending to support it', () async {
+  group('biometry request auth', () {
+    const secureChannel = MethodChannel(
+      'plugins.it_nomads.com/flutter_secure_storage',
+    );
+
+    test('fails and creates no token when the authenticator refuses', () async {
+      SharedPreferences.setMockInitialValues({'active_account_id': '1'});
+      final bridge = buildBridge(
+        biometryAccessResolver: (accountId, botId) async => (true, true),
+        biometryAuthenticator: (reason) async => false,
+      );
+
+      await bridge.handleEvent(
+        'WebAppBiometryRequestAuth',
+        '{"requestId":"bio1"}',
+        false,
+      );
+
+      expect(sent, hasLength(1));
+      expect(sent.first.$2['error'], isNotNull);
+      expect(sent.first.$2.containsKey('token'), isFalse);
+    });
+
+    test('is refused without prior consent even if biometrics succeed', () async {
+      SharedPreferences.setMockInitialValues({'active_account_id': '1'});
+      final bridge = buildBridge(
+        biometryAccessResolver: (accountId, botId) async => (false, false),
+        biometryAuthenticator: (reason) async => true,
+      );
+
+      await bridge.handleEvent(
+        'WebAppBiometryRequestAuth',
+        '{"requestId":"bio2"}',
+        false,
+      );
+
+      expect(sent.first.$2['error'], isNotNull);
+      expect(sent.first.$2.containsKey('token'), isFalse);
+    });
+
+    test('mints a token only after a successful authenticator', () async {
+      SharedPreferences.setMockInitialValues({'active_account_id': '1'});
+      final written = <String>[];
+      TestWidgetsFlutterBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(secureChannel, (call) async {
+            if (call.method == 'write') {
+              written.add(call.arguments['key'].toString());
+            }
+            return null;
+          });
+      final bridge = buildBridge(
+        biometryAccessResolver: (accountId, botId) async => (true, true),
+        biometryAuthenticator: (reason) async => true,
+      );
+
+      await bridge.handleEvent(
+        'WebAppBiometryRequestAuth',
+        '{"requestId":"bio3"}',
+        false,
+      );
+
+      expect(sent.first.$2['status'], 'authorized');
+      expect(sent.first.$2['token'], isNotNull);
+      expect(written.any((key) => key.contains('biometry')), isTrue);
+
+      TestWidgetsFlutterBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(secureChannel, null);
+    });
+
+    test('fails when nobody is logged in', () async {
+      SharedPreferences.setMockInitialValues({});
+      final bridge = buildBridge(
+        biometryAccessResolver: (accountId, botId) async => (true, true),
+        biometryAuthenticator: (reason) async => true,
+      );
+
+      await bridge.handleEvent(
+        'WebAppBiometryRequestAuth',
+        '{"requestId":"bio4"}',
+        false,
+      );
+
+      expect(sent.first.$2['error'], isNotNull);
+      expect(sent.first.$2.containsKey('token'), isFalse);
+    });
+  });
+
+    test('answers NFC availability without pretending to support it', () async {
+
     final bridge = buildBridge();
 
     await bridge.handleEvent('WebAppNfcGetInfo', '{"requestId":"r8"}', false);

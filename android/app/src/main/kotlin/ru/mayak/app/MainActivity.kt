@@ -23,7 +23,7 @@ import android.view.WindowManager
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.FlutterEngineCache
 import io.flutter.plugin.common.EventChannel
@@ -50,7 +50,7 @@ import java.util.Collections
 import java.util.Random
 import java.util.concurrent.atomic.AtomicBoolean
 
-class MainActivity : FlutterActivity() {
+class MainActivity : FlutterFragmentActivity() {
 
     private val channelName = "ru.mayak.app/vpn_bypass"
     private val iconPackage = MainActivity::class.java.name.substringBeforeLast('.')
