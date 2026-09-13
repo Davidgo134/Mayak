@@ -367,26 +367,23 @@ class UploadService {
         placeholder: placeholder,
       ),
       (job) async {
-        try {
-          final info = await requestUpload();
-          if (info == null || info.url.isEmpty) {
-            throw const UploadFailure('no_upload_url');
-          }
-          final ok = await fileUploader.uploadMediaFile(
-            Uri.parse(info.url),
-            file,
-            onProgress: (sent, total) => job.report(0, sent, total),
-          );
-          if (!ok) throw const UploadFailure('upload_failed');
-          job.markUploaded();
-          final sent = await send(info.token);
-          if (sent == null) return null;
-          return CachedMessage.fromPushPayload(accountId, chatId, sent);
-        } finally {
-          try {
-            await file.delete();
-          } catch (_) {}
+        final info = await requestUpload();
+        if (info == null || info.url.isEmpty) {
+          throw const UploadFailure('no_upload_url');
         }
+        final ok = await fileUploader.uploadMediaFile(
+          Uri.parse(info.url),
+          file,
+          onProgress: (sent, total) => job.report(0, sent, total),
+        );
+        if (!ok) throw const UploadFailure('upload_failed');
+        job.markUploaded();
+        final sent = await send(info.token);
+        if (sent == null) return null;
+        try {
+          await file.delete();
+        } catch (_) {}
+        return CachedMessage.fromPushPayload(accountId, chatId, sent);
       },
     );
   }
