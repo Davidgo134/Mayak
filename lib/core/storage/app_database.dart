@@ -1341,8 +1341,8 @@ class AppDatabase {
     final db = await _instance;
     return db.query(
       'messages',
-      where: 'account_id = ? AND status = ?',
-      whereArgs: [accountId, 'pending'],
+      where: 'account_id = ? AND status IN (?, ?)',
+      whereArgs: [accountId, 'pending', 'sending'],
       orderBy: 'time ASC',
     );
   }

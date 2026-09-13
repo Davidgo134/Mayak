@@ -4246,6 +4246,7 @@ class _ChatScreenState extends State<ChatScreen>
 
   /// Повторная отправка сообщения-вложения (фото/видео/кружок/голос/файл).
   void _retryAttachmentMessage(CachedMessage msg, int index) {
+    if (UploadService.instance.job(msg.id) != null) return;
     final att = _retryAttachmentOf(msg);
     if (att == null) return;
     final path = _attachmentLocalPath(att);
@@ -6537,6 +6538,7 @@ class _ChatScreenState extends State<ChatScreen>
     _lastSentId = tempId;
     _messages.add(msg);
     _bumpMessages();
+    unawaited(_persistOutgoing(msg));
     Haptics.send();
     _scrollToBottom();
     return msg;
@@ -6552,7 +6554,7 @@ class _ChatScreenState extends State<ChatScreen>
     final idx = _messages.indexWhere((m) => m.id == tempId);
     if (idx == -1) return;
     final old = _messages[idx];
-    _messages[idx] = CachedMessage(
+    final updated = CachedMessage(
       id: realId != null && realId.isNotEmpty ? realId : tempId,
       accountId: old.accountId,
       chatId: old.chatId,
@@ -6563,7 +6565,9 @@ class _ChatScreenState extends State<ChatScreen>
       payload: old.payload,
       attachments: attachment != null ? [attachment] : old.attachments,
     );
+    _messages[idx] = updated;
     _bumpMessages();
+    unawaited(_persistOutgoing(updated, removeId: tempId));
   }
 
   Future<void> _sendHistoryFile(FileHistoryEntry entry) async {
@@ -6584,11 +6588,11 @@ class _ChatScreenState extends State<ChatScreen>
       );
       _updateFileMessageStatus(
         tempId,
-        realId != null ? 'sent' : 'error',
+        realId != null ? 'sent' : 'pending',
         realId: realId,
       );
     } catch (_) {
-      _updateFileMessageStatus(tempId, 'error');
+      _updateFileMessageStatus(tempId, 'pending');
     }
   }
 
@@ -6610,12 +6614,12 @@ class _ChatScreenState extends State<ChatScreen>
         _updateFileMessageStatus(tempId, 'sent', realId: realId);
         _showAttachmentPanel.value = false;
       } else {
-        _updateFileMessageStatus(tempId, 'error');
+        _updateFileMessageStatus(tempId, 'pending');
         showCustomNotification(context, 'Ошибка отправки');
       }
       return ok;
     } catch (e) {
-      _updateFileMessageStatus(tempId, 'error');
+      _updateFileMessageStatus(tempId, 'pending');
       if (mounted) showCustomNotification(context, 'Ошибка: $e');
       return false;
     }
@@ -6707,6 +6711,7 @@ class _ChatScreenState extends State<ChatScreen>
     _messages.add(placeholder);
     _lastSentId = tempId;
     _bumpMessages();
+    unawaited(_persistOutgoing(placeholder));
     Haptics.send();
     _scrollToBottom();
 
@@ -6791,6 +6796,7 @@ class _ChatScreenState extends State<ChatScreen>
       _messages.add(placeholder);
       _lastSentId = tempId;
       _bumpMessages();
+      unawaited(_persistOutgoing(placeholder));
       Haptics.send();
       _scrollToBottom();
     }
@@ -6991,7 +6997,7 @@ class _ChatScreenState extends State<ChatScreen>
       final idx = _messages.indexWhere((m) => m.id == tempId);
       if (idx == -1) return;
       if (serverMsg == null) {
-        _updateFileMessageStatus(tempId, 'error');
+        _updateFileMessageStatus(tempId, 'pending');
         showCustomNotification(context, 'Ошибка отправки');
         return;
       }
@@ -7005,7 +7011,7 @@ class _ChatScreenState extends State<ChatScreen>
       unawaited(_persistOutgoing(real, removeId: tempId));
     } catch (e) {
       if (!mounted) return;
-      _updateFileMessageStatus(tempId, 'error');
+      _updateFileMessageStatus(tempId, 'pending');
       showCustomNotification(context, 'Ошибка: $e');
     }
   }
@@ -7115,8 +7121,10 @@ class _ChatScreenState extends State<ChatScreen>
   void _failPhotoMessage(String tempId) {
     final idx = _messages.indexWhere((m) => m.id == tempId);
     if (idx != -1) {
-      _messages[idx] = _messages[idx].copyWith(status: 'error');
+      final queued = _messages[idx].copyWith(status: 'pending');
+      _messages[idx] = queued;
       _bumpMessages();
+      unawaited(_persistOutgoing(queued));
     }
     Haptics.error();
   }

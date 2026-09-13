@@ -58,6 +58,12 @@ class OutboxService {
           continue;
         }
 
+        final remoteFile = _remoteFileAttachment(pending);
+        if (remoteFile != null) {
+          await _flushRemoteFile(accountId, pending, remoteFile);
+          continue;
+        }
+
         final text = pending.text;
         if (text == null || text.isEmpty) continue;
 
@@ -136,6 +142,17 @@ class OutboxService {
     }
   }
 
+  FileAttachment? _remoteFileAttachment(CachedMessage msg) {
+    for (final att in msg.attachments ?? const <MessageAttachment>[]) {
+      if (att is! FileAttachment) continue;
+      if (att.localPath != null) return null;
+      if ((att.fileId ?? 0) != 0 || (att.fileToken ?? '').isNotEmpty) {
+        return att;
+      }
+    }
+    return null;
+  }
+
   MessageAttachment? _retryableAttachment(CachedMessage msg) {
     for (final att in msg.attachments ?? const <MessageAttachment>[]) {
       final path = _attachmentLocalPath(att);
@@ -159,6 +176,7 @@ class OutboxService {
     CachedMessage pending,
     MessageAttachment attachment,
   ) async {
+    if (UploadService.instance.job(pending.id) != null) return;
     final path = _attachmentLocalPath(attachment);
     if (path == null || !File(path).existsSync()) {
       await _markMediaFailed(accountId, pending, permanent: true);
@@ -166,6 +184,7 @@ class OutboxService {
     }
     final sending = pending.copyWith(status: 'sending');
     await AppDatabase.saveMessages([sending.toDbRow()]);
+    if (UploadService.instance.job(pending.id) != null) return;
     chats.emitMessageSent(pending.chatId, pending.id, sending);
     await _dispatchMedia(accountId, sending, attachment);
     final sent = UploadService.instance.completedFor(pending.id);
@@ -185,6 +204,61 @@ class OutboxService {
       pending,
       permanent: attempts >= _maxSendAttempts,
     );
+  }
+
+  Future<void> _flushRemoteFile(
+    int accountId,
+    CachedMessage pending,
+    FileAttachment att,
+  ) async {
+    final messages = _messages;
+    if (messages == null) return;
+    final sending = pending.copyWith(status: 'sending');
+    await AppDatabase.saveMessages([sending.toDbRow()]);
+    chats.emitMessageSent(pending.chatId, pending.id, sending);
+    try {
+      final actualId = await messages.sendFileMessage(
+        pending.chatId,
+        att.fileId ?? 0,
+        token: att.fileToken,
+      );
+      _sendAttempts.remove(pending.id);
+      final sent = CachedMessage(
+        id: (actualId != null && actualId.isNotEmpty) ? actualId : pending.id,
+        accountId: accountId,
+        chatId: pending.chatId,
+        senderId: accountId,
+        text: pending.text,
+        time: pending.time,
+        status: 'sent',
+        payload: pending.payload,
+        attachments: pending.attachments,
+      );
+      await AppDatabase.saveMessages([sent.toDbRow()]);
+      if (sent.id != pending.id) {
+        await AppDatabase.deleteMessage(accountId, pending.chatId, pending.id);
+      }
+      chats.emitMessageSent(pending.chatId, pending.id, sent);
+      await chats.applyOutgoing(
+        accountId,
+        pending.chatId,
+        messageId: sent.id,
+        time: sent.time,
+        text: pending.text ?? '',
+        status: 'sent',
+      );
+    } catch (e) {
+      final attempts = _sendAttempts.update(
+        pending.id,
+        (v) => v + 1,
+        ifAbsent: () => 1,
+      );
+      await _markMediaFailed(
+        accountId,
+        pending,
+        permanent: isPermanentSendFailure(e) || attempts >= _maxSendAttempts,
+      );
+    }
   }
 
   Future<void> _markMediaFailed(
