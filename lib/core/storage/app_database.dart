@@ -814,49 +814,74 @@ class AppDatabase {
 
   // Chats cache
 
+  static Future<T> transaction<T>(
+    Future<T> Function(Transaction txn) action,
+  ) async {
+    final db = await _instance;
+    return db.transaction<T>(action);
+  }
+
   static Future<void> saveChats(List<Map<String, dynamic>> rows) async {
     if (rows.isEmpty) return;
     try {
       final db = await _instance;
-      final cols = rows.first.keys.toList();
-      final placeholders = List.filled(cols.length, '?').join(', ');
-      final updates = cols
-          .where((c) => c != 'id' && c != 'account_id')
-          .map((c) => '$c = excluded.$c')
-          .join(', ');
-      final sql =
-          'INSERT INTO chats_cache (${cols.join(', ')}) '
-          'VALUES ($placeholders) '
-          'ON CONFLICT(id, account_id) DO UPDATE SET $updates';
-      await db.transaction((txn) async {
-        final batch = txn.batch();
-        for (final row in rows) {
-          batch.rawInsert(sql, cols.map((c) => row[c]).toList());
-        }
-        await batch.commit(noResult: true);
-        for (final row in rows) {
-          if (!row.containsKey('participants')) continue;
-          if (row['type'] != 'DIALOG') continue;
-          final accountId = row['account_id'];
-          final chatId = row['id'];
-          if (accountId is! int || chatId is! int) continue;
-          await txn.delete(
-            'chat_participants',
-            where: 'account_id = ? AND chat_id = ?',
-            whereArgs: [accountId, chatId],
-          );
-          for (final pid in _participantIdsFromRaw(row['participants'])) {
-            await txn.insert('chat_participants', {
-              'account_id': accountId,
-              'chat_id': chatId,
-              'participant_id': pid,
-            }, conflictAlgorithm: ConflictAlgorithm.ignore);
-          }
-        }
-      });
+      await db.transaction((txn) => saveChatsIn(txn, rows));
     } catch (e) {
       logger.e("Ошибка при сохранении чата: $e");
     }
+  }
+
+  static Future<void> saveChatsIn(
+    DatabaseExecutor db,
+    List<Map<String, dynamic>> rows,
+  ) async {
+    final cols = rows.first.keys.toList();
+    final placeholders = List.filled(cols.length, '?').join(', ');
+    final updates = cols
+        .where((c) => c != 'id' && c != 'account_id')
+        .map((c) => '$c = excluded.$c')
+          .join(', ');
+    final sql =
+        'INSERT INTO chats_cache (${cols.join(', ')}) '
+        'VALUES ($placeholders) '
+        'ON CONFLICT(id, account_id) DO UPDATE SET $updates';
+    final batch = db.batch();
+    for (final row in rows) {
+      batch.rawInsert(sql, cols.map((c) => row[c]).toList());
+    }
+    await batch.commit(noResult: true);
+    for (final row in rows) {
+      if (!row.containsKey('participants')) continue;
+      if (row['type'] != 'DIALOG') continue;
+      final accountId = row['account_id'];
+      final chatId = row['id'];
+      if (accountId is! int || chatId is! int) continue;
+      await db.delete(
+        'chat_participants',
+        where: 'account_id = ? AND chat_id = ?',
+        whereArgs: [accountId, chatId],
+      );
+      for (final pid in _participantIdsFromRaw(row['participants'])) {
+        await db.insert('chat_participants', {
+          'account_id': accountId,
+          'chat_id': chatId,
+          'participant_id': pid,
+        }, conflictAlgorithm: ConflictAlgorithm.ignore);
+      }
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> loadChatIn(
+    DatabaseExecutor db,
+    int accountId,
+    int chatId,
+  ) {
+    return db.query(
+      'chats_cache',
+      where: 'account_id = ? AND id = ?',
+      whereArgs: [accountId, chatId],
+      orderBy: 'last_event_time DESC',
+    );
   }
 
   static Future<void> repairLastMessageSenders(int accountId) async {

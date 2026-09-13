@@ -13,6 +13,7 @@ import 'shared_content.dart';
 import '../../core/storage/app_database.dart';
 import '../../core/storage/chat_members_store.dart';
 import '../../core/storage/token_storage.dart';
+import '../../core/utils/keyed_task_queue.dart';
 import '../../core/utils/logger.dart';
 import '../../core/utils/text_format.dart';
 import '../../models/chat_preview_media.dart';
@@ -625,15 +626,23 @@ class ChatsModule {
     int chatId,
     CachedChat? Function(CachedChat chat) mutate,
   ) async {
-    final rows = await AppDatabase.loadChat(accountId, chatId);
-    if (rows.isEmpty) return false;
-    final updated = mutate(CachedChat.fromDbRow(rows.first));
-    if (updated == null) return false;
-    final row = Map<String, dynamic>.from(rows.first)
-      ..addAll(updated.toDbRow());
-    await AppDatabase.saveChats([row]);
-    _bump();
-    return true;
+    var changed = false;
+    try {
+      await AppDatabase.transaction((txn) async {
+        final rows = await AppDatabase.loadChatIn(txn, accountId, chatId);
+        if (rows.isEmpty) return;
+        final updated = mutate(CachedChat.fromDbRow(rows.first));
+        if (updated == null) return;
+        final row = Map<String, dynamic>.from(rows.first)
+          ..addAll(updated.toDbRow());
+        await AppDatabase.saveChatsIn(txn, [row]);
+        changed = true;
+      });
+    } catch (e) {
+      logger.w('updateChat $chatId: $e');
+    }
+    if (changed) _bump();
+    return changed;
   }
 
   static Map<String, dynamic>? _decodePayload(dynamic raw) {
@@ -647,7 +656,9 @@ class ChatsModule {
 
   StreamSubscription<Packet>? _globalPushSub;
   StreamSubscription<SessionState>? _globalStateSub;
-  Future<void> _pushQueue = Future.value();
+  final KeyedTaskQueue<int> _pushQueues = KeyedTaskQueue<int>(
+    onError: (e) => logger.w('Ошибка обработки пуша: $e'),
+  );
 
   final Set<int> _historyFetched = {};
 
@@ -689,24 +700,39 @@ class ChatsModule {
     SharedContentModule.clearMediaIndex();
   }
 
-  void _enqueueGlobalPush(Packet packet) {
-    _pushQueue = _pushQueue.then((_) => _handleGlobalPush(packet)).catchError((
-      Object e,
-    ) {
-      logger.w('Ошибка обработки пуша: $e');
-    });
+  int _pushQueueKey(Packet packet) {
+    final payload = packet.payload;
+    if (payload is! Map) return 0;
+    final chatId = payload['chatId'];
+    if (chatId is int) return chatId;
+    final chat = payload['chat'];
+    if (chat is Map && chat['id'] is int) return chat['id'] as int;
+    return 0;
   }
 
-  Future<void> _handleGlobalPush(Packet packet) async {
+  void _enqueueGlobalPush(Packet packet) {
+    final queueKey = _pushQueueKey(packet);
+    unawaited(
+      TokenStorage.getActiveAccountId().then<void>((accountId) {
+        if (accountId == null) return;
+        _pushQueues.enqueue(
+          queueKey,
+          () => _handleGlobalPush(packet, accountId),
+        );
+      }),
+    );
+  }
+
+  Future<void> _handleGlobalPush(Packet packet, int accountId) async {
     switch (packet.opcode) {
       case Opcode.notifMessage:
-        await _handleNotifMessage(packet);
+        await _handleNotifMessage(packet, accountId);
       case Opcode.notifMark:
-        await _handleNotifMark(packet);
+        await _handleNotifMark(packet, accountId);
       case Opcode.notifMsgReactionsChanged:
-        await _handleNotifMsgReactionsChanged(packet);
+        await _handleNotifMsgReactionsChanged(packet, accountId);
       case Opcode.notifMsgDelete:
-        await _handleNotifMsgDelete(packet);
+        await _handleNotifMsgDelete(packet, accountId);
       case Opcode.notifPresence:
         _handlePresence(packet);
     }
@@ -722,11 +748,9 @@ class ChatsModule {
     PresenceFetch.apply(userId, Map<String, dynamic>.from(presence));
   }
 
-  Future<void> _handleNotifMsgDelete(Packet packet) async {
+  Future<void> _handleNotifMsgDelete(Packet packet, int accountId) async {
     final payload = packet.payload;
     if (payload is! Map) return;
-    final accountId = await TokenStorage.getActiveAccountId();
-    if (accountId == null) return;
 
     final chatMap = payload['chat'];
     int? chatId;
@@ -756,7 +780,18 @@ class ChatsModule {
     _bump();
   }
 
-  Future<void> _handleNotifMessage(Packet packet) async {
+  Future<void> _fetchUnknownChat(int accountId, int chatId) async {
+    try {
+      final chatInfo = await ChatInfoFetch.get(chatId);
+      if (chatInfo != null) {
+        await cacheServerChat(chatInfo.raw, accountId);
+      }
+    } catch (e) {
+      logger.w('notifMessage: fetch info for unknown chat $chatId failed: $e');
+    }
+  }
+
+  Future<void> _handleNotifMessage(Packet packet, int accountId) async {
     final payload = packet.payload;
     if (payload is! Map) return;
     final chatId = payload['chatId'];
@@ -773,9 +808,6 @@ class ChatsModule {
         (msg['postId'] is String);
     if (isCommentPush) return;
 
-    final accountId = await TokenStorage.getActiveAccountId();
-    if (accountId == null) return;
-
     final senderId = msg['sender'] as int?;
     final msgIdStr = msg['id']?.toString();
     final msgIdInt = (msg['id'] is int)
@@ -788,25 +820,9 @@ class ChatsModule {
 
     var rows = await AppDatabase.loadChat(accountId, chatId);
     if (rows.isEmpty) {
-      try {
-        final chatInfo = await ChatInfoFetch.get(chatId);
-        if (chatInfo != null) {
-          await cacheServerChat(chatInfo.raw, accountId);
-        }
-      } catch (e) {
-        logger.w(
-          'notifMessage: fetch info for unknown chat $chatId failed: $e',
-        );
-        // Пуш потерян — форсим рефетч истории с сервера при открытии чата,
-        // иначе сообщение пропадёт до перезапуска приложения.
-        _historyFetched.remove(chatId);
-        return;
-      }
-      rows = await AppDatabase.loadChat(accountId, chatId);
-      if (rows.isEmpty) {
-        _historyFetched.remove(chatId);
-        return;
-      }
+      _historyFetched.remove(chatId);
+      unawaited(_fetchUnknownChat(accountId, chatId));
+      return;
     }
 
     if (status == 'REMOVED' && msgIdStr != null) {
@@ -903,7 +919,11 @@ class ChatsModule {
     }
 
     final newRow = Map<String, dynamic>.from(rows.first);
-    if (status != 'REMOVED') {
+    final isStalePreview =
+        cached.lastMsgTime != null &&
+        msgTime != null &&
+        msgTime < cached.lastMsgTime!;
+    if (status != 'REMOVED' && !isStalePreview) {
       if (msgIdInt != null) newRow['last_msg_id'] = msgIdInt;
       if (msgTime != null) {
         newRow['last_msg_time'] = msgTime;
@@ -1080,16 +1100,16 @@ class ChatsModule {
     return newlyDeleted;
   }
 
-  Future<void> _handleNotifMsgReactionsChanged(Packet packet) async {
+  Future<void> _handleNotifMsgReactionsChanged(
+    Packet packet,
+    int accountId,
+  ) async {
     final payload = packet.payload;
     if (payload is! Map) return;
     final chatId = payload['chatId'];
     if (chatId is! int) return;
     final messageId = payload['messageId']?.toString();
     if (messageId == null || messageId.isEmpty) return;
-
-    final accountId = await TokenStorage.getActiveAccountId();
-    if (accountId == null) return;
 
     final existing = await AppDatabase.loadMessage(
       accountId,
@@ -1127,7 +1147,7 @@ class ChatsModule {
     _bump();
   }
 
-  Future<void> _handleNotifMark(Packet packet) async {
+  Future<void> _handleNotifMark(Packet packet, int accountId) async {
     final payload = packet.payload;
     if (payload is! Map) return;
     final chatId = payload['chatId'];
@@ -1138,16 +1158,23 @@ class ChatsModule {
     if (mark is! int) return;
     if (payload['setAsUnread'] == true) return;
 
-    final accountId = await TokenStorage.getActiveAccountId();
-    if (accountId == null) return;
-
-    final rows = await AppDatabase.loadChat(accountId, chatId);
-    if (rows.isEmpty) return;
-    final cached = CachedChat.fromDbRow(rows.first);
-    if (cached.participants[userId] == mark) return;
-    cached.participants[userId] = mark;
-    await AppDatabase.saveChats([cached.toDbRow()]);
-    _bump();
+    var changed = false;
+    try {
+      await AppDatabase.transaction((txn) async {
+        final rows = await AppDatabase.loadChatIn(txn, accountId, chatId);
+        if (rows.isEmpty) return;
+        final cached = CachedChat.fromDbRow(rows.first);
+        if (cached.participants[userId] == mark) return;
+        cached.participants[userId] = mark;
+        final row = Map<String, dynamic>.from(rows.first)
+          ..addAll(cached.toDbRow());
+        await AppDatabase.saveChatsIn(txn, [row]);
+        changed = true;
+      });
+    } catch (e) {
+      logger.w('notifMark $chatId: $e');
+    }
+    if (changed) _bump();
   }
 
   final Set<int> _pendingContactUpdates = {};
