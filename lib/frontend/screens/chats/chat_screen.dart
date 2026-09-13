@@ -309,6 +309,36 @@ class ChatScreen extends StatefulWidget {
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
+class _ChatScrollController {
+  _ChatScrollController({
+    required VoidCallback onScrollForDate,
+    required VoidCallback onMaybeLoadMoreHistory,
+    required VoidCallback onRecordScrollPixels,
+    required VoidCallback onScheduleReadMarker,
+    required VoidCallback onUpdateScrollDownVisible,
+  }) : _listeners = [
+         onScrollForDate,
+         onMaybeLoadMoreHistory,
+         onRecordScrollPixels,
+         onScheduleReadMarker,
+         onUpdateScrollDownVisible,
+       ] {
+    for (final listener in _listeners) {
+      controller.addListener(listener);
+    }
+  }
+
+  final ScrollController controller = ScrollController();
+  final List<VoidCallback> _listeners;
+
+  void dispose() {
+    for (final listener in _listeners) {
+      controller.removeListener(listener);
+    }
+    controller.dispose();
+  }
+}
+
 class _ChatScreenState extends State<ChatScreen>
     with
         TickerProviderStateMixin,
@@ -320,7 +350,8 @@ class _ChatScreenState extends State<ChatScreen>
   double _keyboardReserve = 0;
   bool _keyboardWasOpen = false;
   bool _keyboardBeforeStickers = false;
-  final ScrollController _scrollController = ScrollController();
+  late final _ChatScrollController _chatScroll;
+  ScrollController get _scrollController => _chatScroll.controller;
   bool _userDidScroll = false;
   int _userGestureEpoch = 0;
   String? _pinnedMessageId;
@@ -728,11 +759,13 @@ class _ChatScreenState extends State<ChatScreen>
     _syncUploadStatus();
     chats.chatsChanged.addListener(_onChatsBump);
     _messageController.addListener(_onTextChanged);
-    _scrollController.addListener(_onScrollForDate);
-    _scrollController.addListener(_maybeLoadMoreHistory);
-    _scrollController.addListener(_recordScrollPixels);
-    _scrollController.addListener(_scheduleReadMarker);
-    _scrollController.addListener(_updateScrollDownVisible);
+    _chatScroll = _ChatScrollController(
+      onScrollForDate: _onScrollForDate,
+      onMaybeLoadMoreHistory: _maybeLoadMoreHistory,
+      onRecordScrollPixels: _recordScrollPixels,
+      onScheduleReadMarker: _scheduleReadMarker,
+      onUpdateScrollDownVisible: _updateScrollDownVisible,
+    );
     MediaPlayback.instance.enterChat(widget.chatId);
     AppVisualStyle.current.addListener(_onVisualStyleChanged);
     AppChatChrome.current.addListener(_onVisualStyleChanged);
@@ -2226,11 +2259,7 @@ class _ChatScreenState extends State<ChatScreen>
     _animojiHold.dispose();
     _saveDraft();
     _messageController.removeListener(_onTextChanged);
-    _scrollController.removeListener(_onScrollForDate);
-    _scrollController.removeListener(_maybeLoadMoreHistory);
-    _scrollController.removeListener(_recordScrollPixels);
-    _scrollController.removeListener(_scheduleReadMarker);
-    _scrollController.removeListener(_updateScrollDownVisible);
+    _chatScroll.dispose();
     _readMarker.dispose();
     AppVisualStyle.current.removeListener(_onVisualStyleChanged);
     MediaPlayback.instance.leaveChat(widget.chatId);
@@ -2299,7 +2328,6 @@ class _ChatScreenState extends State<ChatScreen>
     _messageController.dispose();
     _messageFocusNode.dispose();
     _stickers.dispose();
-    _scrollController.dispose();
     _shimmerStartTimer?.cancel();
     _shimmerController.dispose();
     _replyTo.dispose();
