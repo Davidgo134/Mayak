@@ -1606,9 +1606,13 @@ class _ChatScreenState extends State<ChatScreen>
 
   bool _badgeRefreshing = false;
   bool _badgeRefreshQueued = false;
+  Timer? _chatMetaThrottleTimer;
 
   void _onChatsBump() {
-    unawaited(_reloadChatMeta());
+    _chatMetaThrottleTimer ??= Timer(const Duration(milliseconds: 150), () {
+      _chatMetaThrottleTimer = null;
+      if (mounted) unawaited(_reloadChatMeta());
+    });
     if (_badgeRefreshing) {
       _badgeRefreshQueued = true;
       return;
@@ -2216,6 +2220,7 @@ class _ChatScreenState extends State<ChatScreen>
     }
     WidgetsBinding.instance.removeObserver(this);
     _uploadEventSub?.cancel();
+    _chatMetaThrottleTimer?.cancel();
     chats.chatsChanged.removeListener(_onChatsBump);
     _otherUnread.dispose();
     _animojiHold.dispose();
