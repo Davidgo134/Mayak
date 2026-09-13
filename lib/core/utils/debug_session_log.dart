@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../protocol/opcode_map.dart';
@@ -115,6 +116,10 @@ class DebugSessionLog {
 
   static final RegExp _ansiEscape = RegExp(r'\x1B\[[0-9;]*m');
 
+  final ValueNotifier<bool> releaseRecording = ValueNotifier(false);
+
+  bool get isRecording => !kReleaseMode || releaseRecording.value;
+
   Directory? _dir;
   File? _currentFile;
   DateTime? _currentStart;
@@ -126,8 +131,14 @@ class DebugSessionLog {
   bool _dirty = false;
   Timer? _flushTimer;
 
+  Future<void> setReleaseRecording(bool enabled) async {
+    releaseRecording.value = enabled;
+    if (enabled) await init();
+  }
+
   Future<void> init() async {
     if (_initialized) return;
+    if (kReleaseMode && !releaseRecording.value) return;
     _initialized = true;
     _currentStart = DateTime.now();
     try {
@@ -147,6 +158,7 @@ class DebugSessionLog {
   }
 
   void recordLogLine(String line) {
+    if (!isRecording) return;
     final clean = line.replaceAll(_ansiEscape, '');
     _logLines.add(clean);
     if (_logLines.length > _maxLogLinesPerSession) {
@@ -157,6 +169,7 @@ class DebugSessionLog {
   }
 
   void recordRequest(int opcode, int seq, dynamic payload) {
+    if (!isRecording) return;
     _entries.add(
       _LogEntry(
         opcode: opcode,
@@ -173,6 +186,7 @@ class DebugSessionLog {
   }
 
   void recordResponse(int seq, int cmd, dynamic payload) {
+    if (!isRecording) return;
     final entry = _findPending(seq);
     if (entry == null) return;
     entry.responseTime = DateTime.now();
@@ -182,6 +196,7 @@ class DebugSessionLog {
   }
 
   void recordError(int seq, Object error) {
+    if (!isRecording) return;
     final entry = _findPending(seq);
     if (entry == null) return;
     entry.responseTime = DateTime.now();

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
+import '../../../core/utils/debug_session_log.dart';
+
 import '../screens/auth/login_screen.dart';
+import 'debug_toggle_tile.dart';
 
 class DebugQuickActionsSection extends StatelessWidget {
   final VoidCallback onExportLog;
@@ -68,6 +71,19 @@ class DebugQuickActionsSection extends StatelessWidget {
                 ),
               ),
             ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: DebugToggleTile(
+            icon: Symbols.terminal,
+            title: 'Запись отладочного лога',
+            subtitle: (value) => value
+                ? 'Лог пишется и в release-сборке до перезапуска приложения'
+                : 'В release запись выключена, в debug пишется всегда',
+            valueListenable: DebugSessionLog.instance.releaseRecording,
+            onChanged: (value) =>
+                DebugSessionLog.instance.setReleaseRecording(value),
           ),
         ),
         Padding(

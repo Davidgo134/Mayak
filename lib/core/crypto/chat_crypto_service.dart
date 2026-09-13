@@ -31,10 +31,12 @@ class ChatCryptoService {
   final Map<String, Future<Uint8List?>> _pending = {};
   Future<void>? _init;
   bool _unavailable = false;
+  int _generation = 0;
 
   String _cacheKey(int accountId, int chatId) => '$accountId/$chatId';
 
   void clearKeys() {
+    _generation++;
     _keys.clear();
     _pending.clear();
   }
@@ -64,6 +66,7 @@ class ChatCryptoService {
     int chatId,
     String cacheKey,
   ) async {
+    final generation = _generation;
     try {
       if (!await _ensureInitialized()) return null;
       final password = await ChatEncryptionStore.instance.readKey(
@@ -72,6 +75,7 @@ class ChatCryptoService {
       );
       if (password == null || password.isEmpty) return null;
       final key = await kc.deriveKey(password: password);
+      if (_generation != generation) return null;
       _keys[cacheKey] = key;
       return key;
     } catch (e) {
@@ -127,40 +131,45 @@ class ChatCryptoService {
     int chatId,
     String sourcePath,
     String destPath,
-  ) => _imageOp(
-    accountId,
-    chatId,
-    () => kc.encryptImageFile(
-      sourcePath: sourcePath,
-      destPath: destPath,
-      key: _keys[_cacheKey(accountId, chatId)]!,
-    ),
-  );
+  ) async {
+    final key = await _keyFor(accountId, chatId);
+    if (key == null) {
+      return _unavailable ? CryptoFailure.unavailable : CryptoFailure.noKey;
+    }
+    return _imageOp(
+      chatId,
+      () => kc.encryptImageFile(
+        sourcePath: sourcePath,
+        destPath: destPath,
+        key: key,
+      ),
+    );
+  }
 
   Future<CryptoFailure?> decryptImageFile(
     int accountId,
     int chatId,
     String sourcePath,
     String destPath,
-  ) => _imageOp(
-    accountId,
-    chatId,
-    () => kc.decryptImageFile(
-      sourcePath: sourcePath,
-      destPath: destPath,
-      key: _keys[_cacheKey(accountId, chatId)]!,
-    ),
-  );
-
-  Future<CryptoFailure?> _imageOp(
-    int accountId,
-    int chatId,
-    Future<void> Function() run,
   ) async {
     final key = await _keyFor(accountId, chatId);
     if (key == null) {
       return _unavailable ? CryptoFailure.unavailable : CryptoFailure.noKey;
     }
+    return _imageOp(
+      chatId,
+      () => kc.decryptImageFile(
+        sourcePath: sourcePath,
+        destPath: destPath,
+        key: key,
+      ),
+    );
+  }
+
+  Future<CryptoFailure?> _imageOp(
+    int chatId,
+    Future<void> Function() run,
+  ) async {
     try {
       await run();
       return null;

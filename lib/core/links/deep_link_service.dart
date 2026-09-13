@@ -9,6 +9,7 @@ import '../../l10n/app_localizations.dart';
 import '../../backend/api.dart';
 import '../../frontend/debug/log_export.dart';
 import '../../frontend/screens/digital_id/digital_id_web_screen.dart';
+import '../../frontend/widgets/confirm_dialog.dart';
 import '../../frontend/widgets/custom_notification.dart';
 import '../../frontend/widgets/max_link_handler.dart';
 import '../../frontend/widgets/max_link_nav.dart';
@@ -21,6 +22,7 @@ import '../webpush/web_push_service.dart';
 import 'desktop_url_scheme.dart';
 import 'max_link.dart';
 import '../config/build_profile.dart';
+import '../utils/debug_session_log.dart';
 
 class DeepLinkService {
   DeepLinkService._();
@@ -110,7 +112,7 @@ class DeepLinkService {
         });
       } else {
         _pendingLogExport = false;
-        exportDebugLog(context);
+        unawaited(_confirmAndExportLog(context));
       }
     }
 
@@ -160,6 +162,22 @@ class DeepLinkService {
     if (needsConnection && api.state != SessionState.online) return;
     _pending = null;
     tryHandleMaxLink(context, pending);
+  }
+
+  Future<void> _confirmAndExportLog(BuildContext context) async {
+    if (!DebugSessionLog.instance.isRecording) {
+      if (context.mounted) {
+        showCustomNotification(context, 'Запись отладочного лога выключена');
+      }
+      return;
+    }
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Экспорт отладочного лога',
+      message: 'Ссылка запросила выгрузку отладочного лога. Экспортировать?',
+      confirmLabel: 'Экспортировать',
+    );
+    if (confirmed && context.mounted) await exportDebugLog(context);
   }
 
   bool _isExternalCallback(Uri uri) {

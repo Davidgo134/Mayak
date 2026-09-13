@@ -17,6 +17,15 @@ const _sensitiveExact = {
   'mt_instanceid',
   'instanceid',
   'webappdata',
+  'name',
+  'title',
+  'chat',
+  'file',
+  'avatar',
+  'firstname',
+  'lastname',
+  'endpoints',
+  'ip',
 };
 
 bool _isSensitiveKey(Object? key) {
