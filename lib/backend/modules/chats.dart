@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import '../../core/config/mayak_settings.dart';
+import '../../core/protocol/client_id_allocator.dart';
 import '../../core/protocol/opcode_map.dart';
 import '../../core/protocol/packet.dart';
 import '../../core/cache/info_cache.dart';
@@ -1596,7 +1597,7 @@ class ChatsModule {
   }) async {
     final payload = {
       'message': {
-        'cid': DateTime.now().millisecondsSinceEpoch,
+        'cid': ClientIdAllocator.instance.next(),
         'attaches': [
           {
             '_type': 'CONTROL',

@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../api.dart';
 import '../../core/config/mayak_settings.dart';
 import '../../core/contacts/device_contacts_service.dart';
+import '../../core/protocol/client_id_allocator.dart';
 import '../../core/protocol/opcode_map.dart';
 import '../../core/protocol/packet.dart';
 import '../../core/storage/app_database.dart';
@@ -874,7 +875,7 @@ class MessagesModule {
   }) async {
     final message = <String, dynamic>{
       'text': text,
-      'cid': DateTime.now().millisecondsSinceEpoch * -1,
+      'cid': ClientIdAllocator.instance.nextNegative(),
       'elements': elements,
       'attaches': [],
     };
@@ -904,7 +905,7 @@ class MessagesModule {
     final payload = {
       'chatId': chatId,
       'message': {
-        'cid': DateTime.now().millisecondsSinceEpoch * -1,
+        'cid': ClientIdAllocator.instance.nextNegative(),
         'text': '',
         'attaches': [control],
       },
@@ -920,7 +921,7 @@ class MessagesModule {
     final response = await _api.sendRequest(Opcode.msgSend, {
       'chatId': chatId,
       'message': {
-        'cid': DateTime.now().millisecondsSinceEpoch * -1,
+        'cid': ClientIdAllocator.instance.nextNegative(),
         'attaches': [
           {
             '_type': 'CONTROL',
@@ -1003,7 +1004,7 @@ class MessagesModule {
       'detectShare': false,
       'elements': [],
       'attaches': [],
-      'cid': DateTime.now().millisecondsSinceEpoch * -1,
+      'cid': ClientIdAllocator.instance.nextNegative(),
       'link': {
         'type': 'FORWARD',
         'chatId': sourceChatId,
@@ -1158,7 +1159,7 @@ class MessagesModule {
   Future<bool> sendLinkMessage(int chatId, String url) async {
     final message = <String, dynamic>{
       'text': url,
-      'cid': DateTime.now().millisecondsSinceEpoch * -1,
+      'cid': ClientIdAllocator.instance.nextNegative(),
       'elements': [
         {
           'type': 'LINK',
@@ -1513,7 +1514,7 @@ class MessagesModule {
       'isLive': false,
       'detectShare': false,
       'elements': <dynamic>[],
-      'cid': DateTime.now().millisecondsSinceEpoch,
+      'cid': ClientIdAllocator.instance.next(),
       'attaches': [
         if (token != null)
           {'_type': 'FILE', 'token': token}
@@ -1559,7 +1560,7 @@ class MessagesModule {
     Duration retryDelay = const Duration(seconds: 1),
   }) async {
     final message = <String, dynamic>{
-      'cid': DateTime.now().millisecondsSinceEpoch * -1,
+      'cid': ClientIdAllocator.instance.nextNegative(),
       'attaches': [
         for (final token in photoTokens)
           {'_type': 'PHOTO', 'photoToken': token},
@@ -1620,7 +1621,7 @@ class MessagesModule {
       'isLive': false,
       'detectShare': false,
       'elements': <dynamic>[],
-      'cid': DateTime.now().millisecondsSinceEpoch * -1,
+      'cid': ClientIdAllocator.instance.nextNegative(),
       'attaches': [
         {'videoType': 0, '_type': 'VIDEO', 'token': token},
       ],
@@ -1681,7 +1682,7 @@ class MessagesModule {
       'isLive': false,
       'detectShare': false,
       'elements': <dynamic>[],
-      'cid': DateTime.now().millisecondsSinceEpoch * -1,
+      'cid': ClientIdAllocator.instance.nextNegative(),
       'attaches': [
         {
           'duration': duration,
@@ -1746,7 +1747,7 @@ class MessagesModule {
       'isLive': false,
       'detectShare': false,
       'elements': <dynamic>[],
-      'cid': DateTime.now().millisecondsSinceEpoch * -1,
+      'cid': ClientIdAllocator.instance.nextNegative(),
       'attaches': [
         {
           'duration': duration,
@@ -1779,7 +1780,7 @@ class MessagesModule {
     final payload = {
       'chatId': chatId,
       'message': {
-        'cid': DateTime.now().millisecondsSinceEpoch * -1,
+        'cid': ClientIdAllocator.instance.nextNegative(),
         'attaches': [
           {
             '_type': 'LOCATION',
@@ -1804,7 +1805,7 @@ class MessagesModule {
     final payload = {
       'chatId': chatId,
       'message': {
-        'cid': DateTime.now().millisecondsSinceEpoch * -1,
+        'cid': ClientIdAllocator.instance.nextNegative(),
         'attaches': [
           {'_type': 'CONTACT', 'contactId': contactId},
         ],
@@ -1833,7 +1834,7 @@ class MessagesModule {
     final payload = {
       'chatId': chatId,
       'message': {
-        'cid': DateTime.now().millisecondsSinceEpoch * -1,
+        'cid': ClientIdAllocator.instance.nextNegative(),
         'attaches': [
           {
             '_type': 'POLL',
@@ -1871,7 +1872,7 @@ class MessagesModule {
     final payload = {
       'chatId': chatId,
       'message': {
-        'cid': DateTime.now().millisecondsSinceEpoch * -1,
+        'cid': ClientIdAllocator.instance.nextNegative(),
         'attaches': [
           {'_type': 'STICKER', 'stickerId': stickerId},
         ],
