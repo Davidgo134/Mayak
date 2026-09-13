@@ -155,6 +155,14 @@ class _WebAppScreenState extends State<WebAppScreen> {
     return true;
   }
 
+  String? get _launchHost {
+    final url = _launch?.url;
+    if (url == null) return null;
+    final uri = Uri.tryParse(url);
+    if (uri == null || uri.host.isEmpty) return null;
+    return uri.host.toLowerCase();
+  }
+
   Future<NavigationActionPolicy?> _handleNavigation(
     InAppWebViewController controller,
     NavigationAction action,
@@ -184,9 +192,22 @@ class _WebAppScreenState extends State<WebAppScreen> {
     final handler = widget.shouldOverrideUrlLoading;
     if (handler != null) return handler(controller, action, _launch?.url);
 
-    if (uri != null && leavesWebView(uri.scheme)) {
-      if (mounted) await openExternalUrl(context, uri.toString());
-      return NavigationActionPolicy.CANCEL;
+    if (uri != null) {
+      final scheme = uri.scheme.toLowerCase();
+      if (scheme == 'javascript' || scheme == 'file') {
+        return NavigationActionPolicy.CANCEL;
+      }
+      if (scheme == 'http' || scheme == 'https') {
+        if (webViewOriginMatches(uri, _launchHost)) {
+          return NavigationActionPolicy.ALLOW;
+        }
+        if (mounted) await openExternalUrl(context, uri.toString());
+        return NavigationActionPolicy.CANCEL;
+      }
+      if (leavesWebView(scheme)) {
+        if (mounted) await openExternalUrl(context, uri.toString());
+        return NavigationActionPolicy.CANCEL;
+      }
     }
     return NavigationActionPolicy.ALLOW;
   }

@@ -14,9 +14,12 @@ const Set<String> _webViewSchemes = {
   'about',
   'data',
   'blob',
-  'javascript',
-  'file',
 };
+
+bool webViewOriginMatches(Uri uri, String? launchHost) {
+  if (launchHost == null || launchHost.isEmpty) return false;
+  return uri.host.toLowerCase() == launchHost;
+}
 
 bool leavesWebView(String? scheme) {
   if (scheme == null || scheme.isEmpty) return false;
