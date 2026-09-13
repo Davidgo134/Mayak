@@ -7,12 +7,15 @@ class TokenStorage {
   static const _activeAccountKey = 'active_account_id';
 
   static const _secure = FlutterSecureStorage(
-    aOptions: AndroidOptions(),
+    aOptions: AndroidOptions(
+      resetOnError: true,
+      encryptedSharedPreferences: true,
+    ),
     iOptions: IOSOptions(
       accessibility: KeychainAccessibility.first_unlock_this_device,
       synchronizable: false,
     ),
-    mOptions: MacOsOptions(usesDataProtectionKeychain: false),
+    mOptions: MacOsOptions(usesDataProtectionKeychain: true),
   );
 
   static const int _duplicateKeychainItem = -25299;
@@ -21,13 +24,21 @@ class TokenStorage {
       error.details == _duplicateKeychainItem ||
       (error.message?.contains('$_duplicateKeychainItem') ?? false);
 
+  static Future<void> _delete(String key) async {
+    try {
+      await _secure.delete(key: key);
+    } on PlatformException catch (_) {}
+  }
+
   static Future<void> _write(String key, String value) async {
     try {
       await _secure.write(key: key, value: value);
     } on PlatformException catch (e) {
-      if (!_isDuplicateItem(e)) rethrow;
-      await _secure.delete(key: key);
-      await _secure.write(key: key, value: value);
+      await _delete(key);
+      if (!_isDuplicateItem(e)) return;
+      try {
+        await _secure.write(key: key, value: value);
+      } on PlatformException catch (_) {}
     }
   }
 
@@ -35,16 +46,23 @@ class TokenStorage {
       _write(key, value);
 
   static Future<String?> readSecure(String key) async {
-    return _secure.read(key: key);
+    try {
+      return await _secure.read(key: key);
+    } on PlatformException catch (_) {
+      await _delete(key);
+      return null;
+    }
   }
 
-  static Future<void> deleteSecure(String key) async {
-    await _secure.delete(key: key);
-  }
+  static Future<void> deleteSecure(String key) => _delete(key);
 
   static Future<List<String>> secureKeysWithPrefix(String prefix) async {
-    final all = await _secure.readAll();
-    return all.keys.where((key) => key.startsWith(prefix)).toList();
+    try {
+      final all = await _secure.readAll();
+      return all.keys.where((key) => key.startsWith(prefix)).toList();
+    } on PlatformException catch (_) {
+      return [];
+    }
   }
 
   static Future<void> saveToken(String token, int accountId) =>
@@ -52,7 +70,7 @@ class TokenStorage {
 
   static Future<String?> readToken(int accountId) async {
     final key = '$_tokenPrefix$accountId';
-    final secured = await _secure.read(key: key);
+    final secured = await readSecure(key);
     if (secured != null) return secured;
 
     final prefs = await SharedPreferences.getInstance();
@@ -66,10 +84,9 @@ class TokenStorage {
   }
 
   static Future<void> deleteToken(int accountId) async {
-    final key = '$_tokenPrefix$accountId';
-    await _secure.delete(key: key);
+    await _delete('$_tokenPrefix$accountId');
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(key);
+    await prefs.remove('$_tokenPrefix$accountId');
   }
 
   static Future<void> setActiveAccount(int accountId) async {
