@@ -50,10 +50,14 @@ class SessionExpiredException extends PacketError {
   const SessionExpiredException(super.message);
 }
 
+const Set<String> _permanentSendErrorKeys = <String>{};
+
 bool isPermanentSendFailure(Object error) {
   if (error is! PacketError) return false;
   if (error is SessionExpiredException) return false;
-  return !(error.errorKey?.contains('not.ready') ?? false);
+  final key = error.errorKey;
+  if (key == null) return false;
+  return _permanentSendErrorKeys.contains(key);
 }
 
 String messageFromErrorPayload(dynamic payload) {

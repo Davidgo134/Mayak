@@ -1,21 +1,29 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
 
+import '../../core/media/gallery_source.dart' show GalleryItem;
 import '../../core/protocol/packet.dart';
 import '../../core/storage/app_database.dart';
 import '../../core/storage/token_storage.dart';
 import '../../core/utils/logger.dart';
+import '../../models/attachment.dart';
 import '../api.dart';
 import 'chats.dart';
 import 'messages.dart';
+import 'upload_service.dart';
 
 class OutboxService {
   OutboxService._();
 
   static final OutboxService instance = OutboxService._();
 
+  static const int _maxSendAttempts = 5;
+
   Api? _api;
   MessagesModule? _messages;
   bool _flushing = false;
+  final Map<String, int> _sendAttempts = {};
 
   void init(Api api, MessagesModule messages) {
     if (_api != null) return;
@@ -43,6 +51,13 @@ class OutboxService {
       for (final row in rows) {
         if (api.state != SessionState.online) break;
         final pending = CachedMessage.fromDbRow(row);
+
+        final attachment = _retryableAttachment(pending);
+        if (attachment != null) {
+          await _flushMedia(accountId, pending, attachment);
+          continue;
+        }
+
         final text = pending.text;
         if (text == null || text.isEmpty) continue;
 
@@ -60,6 +75,7 @@ class OutboxService {
             replySourceChatId: replySourceChatId,
             elements: elements,
           );
+          _sendAttempts.remove(pending.id);
           final sent = CachedMessage(
             id: actualId.isNotEmpty ? actualId : pending.id,
             accountId: accountId,
@@ -89,7 +105,12 @@ class OutboxService {
             elements: elements.isEmpty ? null : elements,
           );
         } catch (e) {
-          if (!isPermanentSendFailure(e)) {
+          final attempts = _sendAttempts.update(
+            pending.id,
+            (v) => v + 1,
+            ifAbsent: () => 1,
+          );
+          if (!isPermanentSendFailure(e) && attempts < _maxSendAttempts) {
             logger.w('Outbox: отправка ${pending.id} не удалась: $e');
             continue;
           }
@@ -112,6 +133,145 @@ class OutboxService {
       logger.e('Outbox flush: $e');
     } finally {
       _flushing = false;
+    }
+  }
+
+  MessageAttachment? _retryableAttachment(CachedMessage msg) {
+    for (final att in msg.attachments ?? const <MessageAttachment>[]) {
+      final path = _attachmentLocalPath(att);
+      if (path != null) return att;
+    }
+    return null;
+  }
+
+  String? _attachmentLocalPath(MessageAttachment att) {
+    return switch (att) {
+      PhotoAttachment a => a.localPath,
+      VideoAttachment a => a.localPath,
+      AudioAttachment a => a.localPath,
+      FileAttachment a => a.localPath,
+      _ => null,
+    };
+  }
+
+  Future<void> _flushMedia(
+    int accountId,
+    CachedMessage pending,
+    MessageAttachment attachment,
+  ) async {
+    final path = _attachmentLocalPath(attachment);
+    if (path == null || !File(path).existsSync()) {
+      await _markMediaFailed(accountId, pending, permanent: true);
+      return;
+    }
+    final sending = pending.copyWith(status: 'sending');
+    await AppDatabase.saveMessages([sending.toDbRow()]);
+    chats.emitMessageSent(pending.chatId, pending.id, sending);
+    await _dispatchMedia(accountId, sending, attachment);
+    final sent = UploadService.instance.completedFor(pending.id);
+    if (sent != null) {
+      _sendAttempts.remove(pending.id);
+      chats.emitMessageSent(pending.chatId, pending.id, sent);
+      await chats.reconcileLastMessage(accountId, pending.chatId);
+      return;
+    }
+    final attempts = _sendAttempts.update(
+      pending.id,
+      (v) => v + 1,
+      ifAbsent: () => 1,
+    );
+    await _markMediaFailed(
+      accountId,
+      pending,
+      permanent: attempts >= _maxSendAttempts,
+    );
+  }
+
+  Future<void> _markMediaFailed(
+    int accountId,
+    CachedMessage pending, {
+    required bool permanent,
+  }) async {
+    final failed = pending.copyWith(status: permanent ? 'error' : 'pending');
+    await AppDatabase.saveMessages([failed.toDbRow()]);
+    chats.emitMessageSent(pending.chatId, pending.id, failed);
+    await chats.applyOutgoing(
+      accountId,
+      pending.chatId,
+      messageId: pending.id,
+      time: pending.time,
+      text: pending.text ?? '',
+      status: permanent ? 'error' : 'pending',
+    );
+  }
+
+  Future<void> _dispatchMedia(
+    int accountId,
+    CachedMessage msg,
+    MessageAttachment att,
+  ) async {
+    final path = _attachmentLocalPath(att);
+    if (path == null) return;
+    if (att is PhotoAttachment) {
+      final jobs = <({File file, GalleryItem? item})>[
+        for (final a
+            in (msg.attachments ?? const <MessageAttachment>[])
+                .whereType<PhotoAttachment>())
+          if (a.localPath != null && File(a.localPath!).existsSync())
+            (file: File(a.localPath!), item: null),
+      ];
+      await UploadService.instance.sendPhotos(
+        accountId: accountId,
+        chatId: msg.chatId,
+        tempId: msg.id,
+        jobs: jobs,
+        caption: msg.text ?? '',
+        placeholder: msg,
+      );
+    } else if (att is VideoAttachment) {
+      if (att.isNote) {
+        await UploadService.instance.sendVideoNote(
+          accountId: accountId,
+          chatId: msg.chatId,
+          tempId: msg.id,
+          file: File(path),
+          durationMs: att.duration ?? 0,
+          placeholder: msg,
+        );
+      } else {
+        await UploadService.instance.sendVideo(
+          accountId: accountId,
+          chatId: msg.chatId,
+          tempId: msg.id,
+          file: File(path),
+          caption: msg.text ?? '',
+          placeholder: msg,
+        );
+      }
+    } else if (att is AudioAttachment) {
+      final wave = att.waveform == null
+          ? Uint8List(0)
+          : Uint8List.fromList(att.waveform!.codeUnits);
+      await UploadService.instance.sendVoice(
+        accountId: accountId,
+        chatId: msg.chatId,
+        tempId: msg.id,
+        file: File(path),
+        durationMs: att.duration ?? 0,
+        wave: wave,
+        placeholder: msg,
+      );
+    } else if (att is FileAttachment) {
+      final file = File(path);
+      await UploadService.instance.sendFile(
+        accountId: accountId,
+        chatId: msg.chatId,
+        tempId: msg.id,
+        source: file,
+        filename: att.name ?? 'file',
+        size: att.size ?? file.lengthSync(),
+        placeholder: msg,
+      );
     }
   }
 
